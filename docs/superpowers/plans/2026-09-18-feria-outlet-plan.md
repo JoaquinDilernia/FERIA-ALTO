@@ -75,14 +75,15 @@ Reportes/  (existing repo — work in .worktrees/feature-feria-outlet)
   backend/
     firestore.mjs         (MODIFY — export getDb)
     feriaOdoo.mjs          (NEW — Odoo product/pricelist/partner/order/invoice ops)
-    feriaOdoo.test.mjs     (NEW)
     feriaAuth.mjs          (NEW — PIN + caja login, HMAC tokens)
-    feriaAuth.test.mjs     (NEW)
     feriaOrders.mjs        (NEW — Firestore order CRUD + validation)
-    feriaOrders.test.mjs   (NEW)
     feriaRoutes.mjs        (NEW — Express Router, mounted at /api/feria)
     index.mjs              (MODIFY — mount feriaRoutes)
     .env.example           (MODIFY — document 2 new vars)
+    test/
+      feriaOdoo.test.mjs   (NEW — this backend's tests live in test/, not co-located)
+      feriaAuth.test.mjs   (NEW)
+      feriaOrders.test.mjs (NEW)
 
 feria-alto/  (this repo — work directly on master)
   client/
@@ -112,7 +113,8 @@ feria-alto/  (this repo — work directly on master)
 **Files:**
 - Modify: `backend/firestore.mjs` (add one export, no other changes)
 - Create: `backend/feriaOdoo.mjs`
-- Create: `backend/feriaOdoo.test.mjs`
+- Create: `backend/test/feriaOdoo.test.mjs` (this backend discovers tests via
+  `test/**/*.test.mjs`, not co-located with source)
 
 **Interfaces:**
 - Consumes: `authenticate`, `callKw` from `./odoo.mjs` (existing, unmodified).
@@ -147,12 +149,12 @@ calls `getDb()` locally and keeps working exactly as before.
 
 - [ ] **Step 2: Write the failing tests for the pure builder**
 
-Create `backend/feriaOdoo.test.mjs`:
+Create `backend/test/feriaOdoo.test.mjs`:
 
 ```js
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildSaleOrderPayload } from './feriaOdoo.mjs';
+import { buildSaleOrderPayload } from '../feriaOdoo.mjs';
 
 test('arma el payload de sale.order con las líneas en formato Odoo (0,0,{...})', () => {
   const payload = buildSaleOrderPayload({
@@ -313,7 +315,7 @@ Expected: PASS (87 tests — the 85 pre-existing ones plus these 2)
 - [ ] **Step 6: Commit**
 
 ```bash
-git add backend/firestore.mjs backend/feriaOdoo.mjs backend/feriaOdoo.test.mjs
+git add backend/firestore.mjs backend/feriaOdoo.mjs backend/test/feriaOdoo.test.mjs
 git commit -m "feat(feria): operaciones de escritura en Odoo (partner, sale.order, factura)"
 ```
 
@@ -325,7 +327,7 @@ git commit -m "feat(feria): operaciones de escritura en Odoo (partner, sale.orde
 
 **Files:**
 - Create: `backend/feriaAuth.mjs`
-- Create: `backend/feriaAuth.test.mjs`
+- Create: `backend/test/feriaAuth.test.mjs` (test discovery is `test/**/*.test.mjs`)
 
 **Interfaces:**
 - Consumes: `getDb` from `./feriaOdoo.mjs` (Task 1's re-export — importing
@@ -342,14 +344,14 @@ git commit -m "feat(feria): operaciones de escritura en Odoo (partner, sale.orde
 
 - [ ] **Step 1: Write the failing tests for the token logic**
 
-Create `backend/feriaAuth.test.mjs`:
+Create `backend/test/feriaAuth.test.mjs`:
 
 ```js
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 process.env.FERIA_AUTH_SECRET = 'test-secret';
-const { generateToken, verifyToken } = await import('./feriaAuth.mjs');
+const { generateToken, verifyToken } = await import('../feriaAuth.mjs');
 
 test('generateToken + verifyToken hacen roundtrip con el payload', () => {
   const token = generateToken({ role: 'vendedor', id: 'v1', name: 'Ana' });
@@ -486,7 +488,7 @@ Expected: PASS (90 tests)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add backend/feriaAuth.mjs backend/feriaAuth.test.mjs
+git add backend/feriaAuth.mjs backend/test/feriaAuth.test.mjs
 git commit -m "feat(feria): login por PIN (vendedor) y usuario/contraseña (caja)"
 ```
 
@@ -498,7 +500,9 @@ git commit -m "feat(feria): login por PIN (vendedor) y usuario/contraseña (caja
 
 **Files:**
 - Create: `backend/feriaOrders.mjs`
-- Create: `backend/feriaOrders.test.mjs`
+- Create: `backend/test/feriaOrders.test.mjs` (this backend discovers tests via
+  `test/**/*.test.mjs`, not co-located — same correction already applied in
+  Tasks 1 and 2)
 - Create: `backend/feriaRoutes.mjs`
 - Modify: `backend/index.mjs` (mount the new router — one import line, one `app.use` line, nothing else touched)
 - Modify: `backend/.env.example` (document the 2 new vars from Global Constraints)
@@ -513,12 +517,12 @@ running the server and exercising the flow manually during Task 6's step 5.
 
 - [ ] **Step 1: Write the failing tests for `validateOrderInput`**
 
-Create `backend/feriaOrders.test.mjs`:
+Create `backend/test/feriaOrders.test.mjs`:
 
 ```js
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateOrderInput } from './feriaOrders.mjs';
+import { validateOrderInput } from '../feriaOrders.mjs';
 
 const validInput = {
   sellerId: 'v1',
@@ -635,6 +639,16 @@ export async function updateOrderPayment(id, { paymentMethod, invoiceType }) {
   await db.collection(COLLECTION).doc(id).update(update);
 }
 
+// Guarda el id del sale.order de Odoo apenas se crea, ANTES de intentar
+// facturar — deja el pedido en 'pendiente' (no toca status). Así, si la
+// factura falla y el cajero reintenta confirmar, la ruta de confirmación
+// puede ver que este pedido YA tiene un odooOrderId y saltar directo a
+// facturar en vez de crear un sale.order duplicado en Odoo.
+export async function saveOdooOrderId(id, odooOrderId) {
+  const db = getDb();
+  await db.collection(COLLECTION).doc(id).update({ odooOrderId, updatedAt: new Date() });
+}
+
 export async function markOrderConfirmed(id, { odooOrderId, invoiceId = null }) {
   const db = getDb();
   await db.collection(COLLECTION).doc(id).update({
@@ -663,7 +677,7 @@ import { Router } from 'express';
 import { requireFeriaAuth, requireFeriaRole, validateSellerPin, validateCajaCredentials, generateToken } from './feriaAuth.mjs';
 import {
   createOrder, listOrdersByStatus, getOrderById,
-  updateOrderPayment, markOrderConfirmed, markOrderError,
+  updateOrderPayment, saveOdooOrderId, markOrderConfirmed, markOrderError,
 } from './feriaOrders.mjs';
 import {
   searchProducts, getPricelists, findOrCreatePartner, findSalesTeamId,
@@ -752,27 +766,51 @@ router.patch('/orders/:id/payment', requireFeriaAuth, requireFeriaRole('caja'), 
 
 // Confirma el pedido: crea (o busca) el partner, arma y crea el sale.order
 // en Odoo con el Equipo de ventas de la feria, lo confirma, y factura si
-// corresponde. Se puede llamar de nuevo sin problema si quedó en 'error'.
+// corresponde. Se puede llamar de nuevo sin problema si quedó en 'error' —
+// es idempotente respecto de la creación del pedido en Odoo: si esta
+// conversación ya tiene un odooOrderId guardado (de un intento anterior que
+// llegó a crear el pedido pero falló después, típicamente al facturar), un
+// reintento NO vuelve a crear el sale.order — salta directo a facturar.
+// Sin esto, reintentar tras una factura fallida crearía un pedido duplicado
+// en Odoo con plata real ya cobrada.
 router.post('/orders/:id/confirm', requireFeriaAuth, requireFeriaRole('caja'), async (req, res) => {
   const order = await getOrderById(req.params.id);
   if (!order) return res.status(404).json({ error: 'Pedido no encontrado' });
 
   try {
-    const partnerId = await findOrCreatePartner({
-      name: order.customer.name, docNumber: order.customer.docNumber,
-    });
-    const teamId = await findSalesTeamId(process.env.ODOO_FERIA_TEAM_NAME);
-    const vals = buildSaleOrderPayload({
-      partnerId, pricelistId: order.pricelistId, teamId,
-      lines: order.lines.map(l => ({
-        productId: l.productId, qty: l.qty, unitPrice: l.unitPrice, discountPct: l.discountPct,
-      })),
-    });
-    const odooOrderId = await createSaleOrder(vals);
-    await confirmSaleOrder(odooOrderId);
+    let odooOrderId = order.odooOrderId;
 
+    if (!odooOrderId) {
+      const partnerId = await findOrCreatePartner({
+        name: order.customer.name, docNumber: order.customer.docNumber,
+      });
+      const teamId = await findSalesTeamId(process.env.ODOO_FERIA_TEAM_NAME);
+      const vals = buildSaleOrderPayload({
+        partnerId, pricelistId: order.pricelistId, teamId,
+        lines: order.lines.map(l => ({
+          productId: l.productId, qty: l.qty, unitPrice: l.unitPrice, discountPct: l.discountPct,
+        })),
+      });
+      odooOrderId = await createSaleOrder(vals);
+      await confirmSaleOrder(odooOrderId);
+      await saveOdooOrderId(order.id, odooOrderId);
+    }
+
+    // createInvoiceForOrder devuelve null tanto "no se pidió factura" como
+    // "se pidió pero Odoo no pudo generarla" (ver feriaOdoo.mjs). Si el
+    // cajero pidió facturar, un null acá NO es un éxito silencioso — el
+    // pedido ya quedó creado y confirmado en Odoo, pero sin factura, y eso
+    // tiene que verse como error para que el cajero lo note y reintente
+    // (en vez de creer que ya está todo listo). El reintento, gracias al
+    // odooOrderId ya guardado, solo va a reintentar la factura.
     let invoiceId = null;
-    if (order.invoiceType) invoiceId = await createInvoiceForOrder(odooOrderId);
+    if (order.invoiceType) {
+      invoiceId = await createInvoiceForOrder(odooOrderId);
+      if (!invoiceId) {
+        await markOrderError(order.id, `Pedido #${odooOrderId} ya creado y confirmado en Odoo, pero no se pudo generar la factura ${order.invoiceType}. Reintentar solo reintenta la factura, no crea un pedido nuevo.`);
+        return res.status(502).json({ error: `Pedido creado en Odoo (#${odooOrderId}) pero falló la factura — reintentar.` });
+      }
+    }
 
     await markOrderConfirmed(order.id, { odooOrderId, invoiceId });
     res.json({ order: await getOrderById(order.id) });
@@ -851,7 +889,7 @@ guarded, without needing real credentials yet).
 - [ ] **Step 10: Commit**
 
 ```bash
-git add backend/feriaOrders.mjs backend/feriaOrders.test.mjs backend/feriaRoutes.mjs backend/index.mjs backend/.env.example
+git add backend/feriaOrders.mjs backend/test/feriaOrders.test.mjs backend/feriaRoutes.mjs backend/index.mjs backend/.env.example
 git commit -m "feat(feria): pedidos en Firestore + rutas /api/feria/* montadas en index.mjs"
 ```
 
