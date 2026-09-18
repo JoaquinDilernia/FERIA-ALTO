@@ -11,32 +11,58 @@ cliente, y ese pedido llega a un segundo puesto (caja) donde se cobra, se
 confirma el pago y se factura. El pedido tiene que quedar cargado en Odoo,
 identificado como venta de feria (no confundirse con web/local/mayorista).
 
-Es un proyecto nuevo y standalone (repo propio, `feria-alto`), no una feature
-dentro de BOT-ALTORANCHO — decisión explícita del cliente, revisada en la
-sesión de brainstorming sobre unificar backends de Alto Rancho (se decidió NO
-unificar por ahora).
+El frontend (paneles Vendedor/Caja) es un proyecto nuevo standalone (repo
+`feria-alto`). El **backend NO es un servicio nuevo**: corre adentro del
+backend ya deployado de `Reportes` (mismo repo `Reportes/backend`, mismo
+servicio de Railway) — decisión tomada explícitamente para no sumar un
+tercer servicio de Railway a mantener, revisada en la misma sesión de
+brainstorming sobre unificar backends de Alto Rancho.
 
-## Qué se reutiliza de BOT-ALTORANCHO
+## Qué se reutiliza de Reportes/backend
 
-- **Proyecto Firebase**: se reutiliza `pedidos-lett-2` (mismo patrón que
-  todos los demás proyectos de Alto Rancho), con colecciones prefijadas
-  `feria_...`.
-- **Cliente RPC de Odoo**: se copia `callOdoo(model, method, args, kwargs)` de
-  `BOT-ALTORANCHO/server/src/services/odoo.service.js` como punto de partida
-  — ya tiene reintentos y reautenticación resueltos ante sesión expirada.
-  Importante: ese cliente hoy es **solo de lectura** (`search_read`/`read`).
-  Este proyecto necesita **escribir** en Odoo (crear `sale.order`, líneas,
-  partner, y disparar factura) — es trabajo nuevo, no algo que ya exista para
-  copiar tal cual.
+`Reportes/backend` ya tiene, corriendo en producción, exactamente lo que
+hace falta para no reinventar la conexión a Odoo:
+
+- **`odoo.mjs`**: cliente JSON-RPC por sesión (`authenticate()` +
+  `callKw(model, method, args, kwargs)`) — genérico, sirve tanto para leer
+  como para **escribir** (`create`, `write`, `action_confirm`, etc.), aunque
+  hoy solo se usa para lectura (sync de reportes). Se reutiliza tal cual, sin
+  tocarlo — el código nuevo de este proyecto llama a `callKw` para crear el
+  partner, el `sale.order` y la factura.
+- **`firestore.mjs`**: init de Firebase Admin contra `pedidos-lett-2` (mismo
+  proyecto que todos los bots de Alto Rancho). Hoy no expone el `db` crudo
+  (solo funciones de alto nivel) — se le agrega un export de `getDb()` para
+  que el código nuevo pueda leer/escribir sus propias colecciones
+  (`feria_sellers`, `feria_admins`, `feria_orders`) sin duplicar el init.
+- **Variables de entorno de Odoo/Firebase ya cargadas** en ese servicio de
+  Railway — no hace falta cargar credenciales nuevas, solo agregar
+  `FERIA_AUTH_SECRET` (para firmar sesiones de vendedor/caja) y
+  `ODOO_FERIA_TEAM_NAME`.
+- **Dato extra encontrado al revisar el código**: `Reportes/backend/sync/feria.mjs`
+  ya agrupa varios Equipos de venta históricos de Odoo bajo el canal
+  "feria" de los reportes (`FERIA_TEAM_IDS = [10, 20, 21, 22, 23, 24]` —
+  ferias/expos pasadas). Cuando se cree en Odoo el Equipo de venta de esta
+  feria nueva, agregar su ID a esa lista — así las ventas de este proyecto
+  aparecen solas en los reportes existentes, sin trabajo extra.
+
+**Lo que NO se reutiliza** (auth): `Reportes/backend/auth.mjs` es una sesión
+única de dashboard (una sola contraseña compartida, sin roles ni usuarios
+individuales) — no sirve para identificar vendedores ni separar el rol
+caja. Se agrega un archivo nuevo (`feriaAuth.mjs`) con el mismo estilo de
+token firmado por HMAC que ya usa `auth.mjs` (sin sumar `jsonwebtoken` como
+dependencia nueva), pero con payload de rol + identidad.
 
 ## Arquitectura
 
-- App web con dos vistas: `/vendedor` y `/caja`.
-- Sync en tiempo real entre ambas vía listeners de Firestore (mismo patrón
-  que usa el bot para reflejar mensajes al instante) — un pedido creado en
-  `/vendedor` aparece al instante en `/caja` sin refrescar.
-- Backend chico en Node (Express), con el cliente Odoo extendido para
-  escritura.
+- Frontend: app React con dos vistas, `/vendedor` y `/caja`, repo propio
+  (`feria-alto`), deploy propio (liviano, como ya hacen otros frontends de
+  Alto Rancho) apuntando a `Reportes/backend` con `VITE_API_URL`.
+- Backend: rutas nuevas bajo `/api/feria/*` agregadas a `Reportes/backend`
+  (archivo `feriaRoutes.mjs` montado en `index.mjs`, sin tocar las rutas de
+  reportes existentes).
+- Sync entre paneles: Caja consulta `/api/feria/orders?status=pendiente`
+  cada 5 segundos (mismo patrón de polling que ya usa el panel de
+  BOT-ALTORANCHO — no hace falta Firestore listeners del lado del cliente).
 
 ## Login
 
