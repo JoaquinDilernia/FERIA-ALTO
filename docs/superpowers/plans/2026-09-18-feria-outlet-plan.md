@@ -2,75 +2,89 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build `feria-alto`, a two-panel app (Vendedor / Caja) that lets Alto
-Rancho run its outlet feria without paper: a seller loads the order on a
-tablet, it appears instantly at the register, the cashier confirms payment
-and invoice type, and the order + invoice get created in Odoo.
+**Goal:** Build the Vendedor/Caja flow for Alto Rancho's outlet feria: a
+seller loads the order on a tablet, it appears at the register, the cashier
+confirms payment and invoice type, and the order + invoice get created in
+Odoo.
 
-**Architecture:** Standalone Node/Express backend (`server/`) that owns all
-writes to Firestore and Odoo, plus a React/Vite frontend (`client/`) with two
-routes (`/vendedor`, `/caja`) that talk only to the backend's REST API. The
-Caja panel polls the backend every 5s for new orders (same pattern
-BOT-ALTORANCHO's admin panel already uses — no websockets, no direct
-Firestore access from the browser).
+**Architecture:** This spans **two repos** — there is no new backend
+service. The API lives inside the already-deployed
+`Reportes/backend` (new routes under `/api/feria/*`, added to its existing
+Express app / Railway service), reusing its live Odoo client (`odoo.mjs`)
+and Firebase Admin init (`firestore.mjs`). The frontend is a new, separate,
+lightweight React app (repo `feria-alto`) with two routes (`/vendedor`,
+`/caja`) that poll that API every 5s — same polling pattern BOT-ALTORANCHO's
+admin panel already uses (no websockets, no client-side Firestore access).
 
-**Tech Stack:** Node (ESM) + Express + firebase-admin + axios (Odoo JSON-RPC)
-+ jsonwebtoken, matching BOT-ALTORANCHO's backend stack exactly. React + Vite
-+ CSS Modules for the frontend, reusing BOT-ALTORANCHO's design tokens
-(`global.css`) and logo asset. Tests: Node's built-in `node:test` +
-`node:assert/strict`, no extra test dependency — same as BOT-ALTORANCHO,
-which only unit-tests pure/deterministic functions and does not mock
-Odoo/Meta HTTP calls (there's no mocking library in that codebase; this plan
-follows the same convention, so every I/O-calling function is paired with a
-pure, tested "builder" function that contains the actual logic).
+**Tech Stack:**
+- Backend additions: plain `.mjs` files matching `Reportes/backend`'s
+  existing flat, no-framework-extras style (Express, `firebase-admin`, its
+  own HMAC-signed tokens via `node:crypto` — **no new dependency**, `zod`
+  is already there for validation if needed). Tests: `node:test` +
+  `node:assert/strict` (`npm test` already runs `node --test`), same
+  convention as the rest of that backend — pure/deterministic functions get
+  unit tests; the thin Odoo/Firestore I/O wrappers don't (no HTTP-mocking
+  library in that codebase, verified against the real Odoo instance
+  instead).
+- Frontend: React + Vite + CSS Modules, reusing BOT-ALTORANCHO's design
+  tokens (`global.css`) and Alto Rancho logo asset.
 
 **Spec:** `docs/superpowers/specs/2026-09-18-feria-outlet-design.md`
 
 ## Global Constraints
 
-- Firebase project: reuse `pedidos-lett-2` (same project as all other Alto
-  Rancho apps). Collections prefixed `feria_`.
-- Env var names for Odoo match BOT-ALTORANCHO exactly, so credentials can be
-  copy-pasted: `ODOO_URL`, `ODOO_DB`, `ODOO_USER`, `ODOO_API_KEY`.
-- Env var names for Firebase Admin match BOT-ALTORANCHO exactly:
-  `FIREBASE_PROJECT_ID`, `FIREBASE_PRIVATE_KEY`, `FIREBASE_CLIENT_EMAIL`.
-- `JWT_SECRET` required for signing tokens (both vendedor and caja logins).
+- **Two repos, two working directories:**
+  - `Reportes` repo (backend) — work happens in the worktree already
+    created at `Reportes/.worktrees/feature-feria-outlet` on branch
+    `feature/feria-outlet`. This is a live production repo (deployed,
+    serving real reports) — never work on its `main` branch directly.
+  - `feria-alto` repo (frontend) — work happens directly in that repo on
+    `master`. It's brand new (this session created it), nothing depends on
+    it yet, low risk.
+- All new backend routes are mounted under **`/api/feria/`** — never reuse
+  or shadow an existing `/api/...` path in `Reportes/backend/index.mjs`.
+- Firebase project: `pedidos-lett-2` (already configured in that service).
+  New collections prefixed `feria_`: `feria_sellers`, `feria_admins`,
+  `feria_orders`.
+- Odoo credentials: already configured in that service as `ODOO_URL`,
+  `ODOO_DB`, `ODOO_LOGIN`, `ODOO_PASSWORD` — do not add new Odoo env vars.
+- New env vars needed (add to `Reportes/backend/.env.example` and to the
+  Railway service): `FERIA_AUTH_SECRET` (signs vendedor/caja session
+  tokens — separate from the dashboard's own `AUTH_SECRET`),
+  `ODOO_FERIA_TEAM_NAME` (Odoo Sales Team name for this feria, e.g. "Feria
+  Octubre 2026" — tentative, confirm before go-live).
 - Design tokens (colors, spacing, Poppins font) are copied verbatim from
   `BOT-ALTORANCHO/client/src/styles/global.css` — do not invent new brand
   colors.
-- Sales team name in Odoo ("Feria Octubre 2026" or whatever it ends up being
-  called) and the exact invoice-creation RPC method are **not yet confirmed**
-  against the real Odoo instance — Task 2 writes the code against the
-  documented/standard Odoo API shape and flags the one line that needs
-  verification. Do not block on this; it fails loudly (visible error in the
-  Caja panel) instead of silently if wrong.
+- The exact invoice-creation RPC method is **not yet confirmed** against
+  the real Odoo instance — this plan writes the code against the
+  documented/standard Odoo API shape (`_create_invoices`, Odoo 14+) and
+  flags the one line that needs verification. It fails loudly (visible
+  error in the Caja panel), not silently, if wrong.
+- **Follow-up outside this plan** (not a task here, just don't forget it):
+  once the real Odoo Sales Team for this feria exists, add its id to
+  `FERIA_TEAM_IDS` in `Reportes/backend/sync/feria.mjs` so this feria's
+  sales show up in the existing reports automatically.
 
 ---
 
 ## File Structure
 
 ```
-feria-alto/
-  server/
-    src/
-      app.js
-      services/
-        firebase.service.js
-        odoo.service.js
-        odoo.service.test.js
-        feriaAuth.service.js
-        feriaAuth.service.test.js
-        orders.service.js
-        orders.service.test.js
-      middleware/
-        requireAuth.js
-      routes/
-        auth.routes.js
-        products.routes.js
-        pricelists.routes.js
-        orders.routes.js
-    package.json
-    .env.example
+Reportes/  (existing repo — work in .worktrees/feature-feria-outlet)
+  backend/
+    firestore.mjs         (MODIFY — export getDb)
+    feriaOdoo.mjs          (NEW — Odoo product/pricelist/partner/order/invoice ops)
+    feriaOdoo.test.mjs     (NEW)
+    feriaAuth.mjs          (NEW — PIN + caja login, HMAC tokens)
+    feriaAuth.test.mjs     (NEW)
+    feriaOrders.mjs        (NEW — Firestore order CRUD + validation)
+    feriaOrders.test.mjs   (NEW)
+    feriaRoutes.mjs        (NEW — Express Router, mounted at /api/feria)
+    index.mjs              (MODIFY — mount feriaRoutes)
+    .env.example           (MODIFY — document 2 new vars)
+
+feria-alto/  (this repo — work directly on master)
   client/
     index.html
     vite.config.js
@@ -78,202 +92,67 @@ feria-alto/
     src/
       main.jsx
       App.jsx
-      lib/
-        api.js
-      styles/
-        global.css
-      assets/
-        ALTORANCHO.png
+      lib/api.js
+      styles/global.css
+      assets/ALTORANCHO.png
       pages/
-        VendedorLogin.jsx
-        VendedorLogin.module.css
-        VendedorPanel.jsx
-        VendedorPanel.module.css
-        CajaLogin.jsx
-        CajaLogin.module.css
-        CajaPanel.jsx
-        CajaPanel.module.css
+        VendedorLogin.jsx / .module.css
+        VendedorPanel.jsx / .module.css
+        CajaLogin.jsx / .module.css
+        CajaPanel.jsx / .module.css
   README.md
-  .gitignore
 ```
 
 ---
 
-### Task 1: Repo scaffold + backend skeleton
+### Task 1: `getDb()` export + Odoo write operations (`feriaOdoo.mjs`)
+
+**Repo/dir:** `Reportes`, worktree `Reportes/.worktrees/feature-feria-outlet/backend`
 
 **Files:**
-- Create: `server/package.json`
-- Create: `server/.env.example`
-- Create: `server/src/app.js`
-- Create: `server/src/app.test.js`
-- Create: `.gitignore`
-- Create: `README.md`
+- Modify: `backend/firestore.mjs` (add one export, no other changes)
+- Create: `backend/feriaOdoo.mjs`
+- Create: `backend/feriaOdoo.test.mjs`
 
 **Interfaces:**
-- Produces: an Express app exported from `server/src/app.js` as default
-  export, listening only when run directly (so tests can import it without
-  binding a port).
-
-- [ ] **Step 1: Create `.gitignore`**
-
-```
-node_modules
-dist
-.env
-.env.local
-*.local
-```
-
-- [ ] **Step 2: Create `server/package.json`**
-
-```json
-{
-  "name": "feria-alto-server",
-  "version": "1.0.0",
-  "description": "Backend de Feria Outlet Alto Rancho - paneles Vendedor y Caja + integración Odoo",
-  "type": "module",
-  "main": "src/app.js",
-  "scripts": {
-    "dev": "node --watch src/app.js",
-    "start": "node src/app.js",
-    "test": "node --test \"src/**/*.test.js\""
-  },
-  "dependencies": {
-    "axios": "^1.7.2",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2",
-    "firebase-admin": "^12.2.0",
-    "jsonwebtoken": "^9.0.3"
-  }
-}
-```
-
-- [ ] **Step 3: Create `server/.env.example`**
-
-```
-PORT=5000
-JWT_SECRET=
-
-# Firebase Admin SDK (mismo proyecto que los demás bots de Alto Rancho)
-FIREBASE_PROJECT_ID=
-FIREBASE_PRIVATE_KEY=
-FIREBASE_CLIENT_EMAIL=
-
-# Odoo (mismas credenciales que BOT-ALTORANCHO)
-ODOO_URL=
-ODOO_DB=
-ODOO_USER=
-ODOO_API_KEY=
-
-# Nombre del Equipo de ventas en Odoo para identificar pedidos de esta feria
-ODOO_FERIA_TEAM_NAME=Feria Octubre 2026
-```
-
-- [ ] **Step 4: Write the failing test for the app skeleton**
-
-Create `server/src/app.test.js`:
-
-```js
-import { test } from 'node:test';
-import assert from 'node:assert/strict';
-import app from './app.js';
-
-test('GET /health responde ok', async () => {
-  const server = app.listen(0);
-  const { port } = server.address();
-  try {
-    const res = await fetch(`http://localhost:${port}/health`);
-    const body = await res.json();
-    assert.equal(res.status, 200);
-    assert.equal(body.ok, true);
-  } finally {
-    server.close();
-  }
-});
-```
-
-- [ ] **Step 5: Run test to verify it fails**
-
-Run (from `server/`): `npm test`
-Expected: FAIL — `app.js` doesn't exist yet.
-
-- [ ] **Step 6: Create `server/src/app.js`**
-
-```js
-import 'dotenv/config';
-import express from 'express';
-import cors from 'cors';
-
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-app.get('/health', (req, res) => res.json({ ok: true }));
-
-if (process.env.NODE_ENV !== 'test' && import.meta.url === `file://${process.argv[1]}`) {
-  const port = process.env.PORT || 5000;
-  app.listen(port, () => console.log(`[feria-alto] server listo en :${port}`));
-}
-
-export default app;
-```
-
-- [ ] **Step 7: Install deps and run test to verify it passes**
-
-Run (from `server/`): `npm install && npm test`
-Expected: PASS
-
-- [ ] **Step 8: Create root `README.md`**
-
-```markdown
-# Feria Outlet Alto Rancho
-
-Dos paneles — Vendedor y Caja — para cargar y cobrar pedidos de la feria
-outlet de Alto Rancho, con carga automática a Odoo (pedido + factura).
-
-- `server/` — API (Express + Firestore + Odoo).
-- `client/` — React (paneles `/vendedor` y `/caja`).
-
-Ver el diseño completo en `docs/superpowers/specs/2026-09-18-feria-outlet-design.md`.
-```
-
-- [ ] **Step 9: Commit**
-
-```bash
-git add .gitignore README.md server/package.json server/.env.example server/src/app.js server/src/app.test.js
-git commit -m "chore: scaffold del backend (Express + health check)"
-```
-
----
-
-### Task 2: Cliente de Odoo (lectura + escritura)
-
-**Files:**
-- Create: `server/src/services/odoo.service.js`
-- Create: `server/src/services/odoo.service.test.js`
-
-**Interfaces:**
-- Consumes: nada de tasks anteriores (usa `process.env.ODOO_*` directamente).
-- Produces (usados por Task 4 y las rutas de Task 5):
-  - `callOdoo(model, method, args = [], kwargs = {})` → `Promise<any>`
+- Consumes: `authenticate`, `callKw` from `./odoo.mjs` (existing, unmodified).
+- Produces (used by Task 3's routes):
+  - `getDb()` (re-exported from `firestore.mjs`) → Firestore instance
   - `searchProducts(query)` → `Promise<Array<{ id, name, sku, price }>>`
   - `getPricelists()` → `Promise<Array<{ id, name }>>`
   - `findSalesTeamId(teamName)` → `Promise<number|null>`
-  - `findOrCreatePartner({ name, docNumber })` → `Promise<number>` (id del partner)
-  - `buildSaleOrderPayload({ partnerId, pricelistId, teamId, lines })` → objeto plano (función pura, sin I/O)
-  - `createSaleOrder(vals)` → `Promise<number>` (id del pedido creado)
+  - `findOrCreatePartner({ name, docNumber })` → `Promise<number>`
+  - `buildSaleOrderPayload({ partnerId, pricelistId, teamId, lines })` → plain object (pure function)
+  - `createSaleOrder(vals)` → `Promise<number>`
   - `confirmSaleOrder(orderId)` → `Promise<void>`
-  - `createInvoiceForOrder(orderId)` → `Promise<number|null>` (id de la factura, o null si no se pudo)
+  - `createInvoiceForOrder(orderId)` → `Promise<number|null>`
 
-- [ ] **Step 1: Write the failing tests for the pure builder**
+- [ ] **Step 1: Add the `getDb` export to `firestore.mjs`**
 
-Create `server/src/services/odoo.service.test.js`:
+Open `backend/firestore.mjs`. It currently has an internal (non-exported)
+`function getDb() { ... }`. Change only its declaration line from:
+
+```js
+function getDb() {
+```
+
+to:
+
+```js
+export function getDb() {
+```
+
+Nothing else in that file changes — every existing function in it already
+calls `getDb()` locally and keeps working exactly as before.
+
+- [ ] **Step 2: Write the failing tests for the pure builder**
+
+Create `backend/feriaOdoo.test.mjs`:
 
 ```js
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildSaleOrderPayload } from './odoo.service.js';
+import { buildSaleOrderPayload } from './feriaOdoo.mjs';
 
 test('arma el payload de sale.order con las líneas en formato Odoo (0,0,{...})', () => {
   const payload = buildSaleOrderPayload({
@@ -308,63 +187,44 @@ test('sin team_id (todavía no se creó el equipo de ventas en Odoo) lo omite en
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 3: Run test to verify it fails**
 
-Run (from `server/`): `npm test`
-Expected: FAIL — `odoo.service.js` doesn't exist yet.
+Run (from `backend/`): `npm test`
+Expected: FAIL — `feriaOdoo.mjs` doesn't exist yet (85 existing tests still
+pass; this is a new failing file).
 
-- [ ] **Step 3: Write `server/src/services/odoo.service.js`**
+- [ ] **Step 4: Write `backend/feriaOdoo.mjs`**
 
 ```js
-import axios from 'axios';
+import { authenticate, callKw } from './odoo.mjs';
 
-const ODOO_URL = process.env.ODOO_URL;
-const ODOO_DB  = process.env.ODOO_DB ?? 'odoo';
+let authenticated = false;
 
-let cachedUid = null;
-
-async function getUid() {
-  if (cachedUid) return cachedUid;
-  const { data } = await axios.post(`${ODOO_URL}/jsonrpc`, {
-    jsonrpc: '2.0', method: 'call',
-    params: {
-      service: 'common', method: 'authenticate',
-      args: [ODOO_DB, process.env.ODOO_USER, process.env.ODOO_API_KEY, {}],
-    },
-  }, { timeout: 15000 });
-  if (!data.result) throw new Error('[odoo] Auth failed');
-  cachedUid = data.result;
-  return cachedUid;
+async function ensureAuth() {
+  if (!authenticated) {
+    await authenticate();
+    authenticated = true;
+  }
 }
 
-// Copiado del cliente de BOT-ALTORANCHO (server/src/services/odoo.service.js)
-// — mismo patrón de reintento con reset de sesión ante token vencido.
-export async function callOdoo(model, method, args = [], kwargs = {}, attempt = 1) {
+// callKw (odoo.mjs) no reintenta si la sesión de Odoo expiró — no hace
+// falta para los syncs de reportes, que corren cada pocas horas y toleran
+// un reintento del propio cron. Las escrituras de este módulo pasan dinero
+// real en el momento de la venta, así que si la sesión expiró, se
+// reautentica una vez y se reintenta antes de fallarle al cajero.
+async function callKwWithRetry(model, method, args = [], kwargs = {}) {
+  await ensureAuth();
   try {
-    const uid = await getUid();
-    const { data } = await axios.post(`${ODOO_URL}/jsonrpc`, {
-      jsonrpc: '2.0', method: 'call',
-      params: {
-        service: 'object', method: 'execute_kw',
-        args: [ODOO_DB, uid, process.env.ODOO_API_KEY, model, method, args, kwargs],
-      },
-    }, { timeout: 15000 });
-    if (data.error) {
-      cachedUid = null;
-      throw new Error(data.error.data?.message ?? 'Odoo RPC error');
-    }
-    return data.result;
+    return await callKw(model, method, args, kwargs);
   } catch (err) {
-    if (attempt < 3) {
-      cachedUid = null;
-      return callOdoo(model, method, args, kwargs, attempt + 1);
-    }
-    throw err;
+    authenticated = false;
+    await ensureAuth();
+    return callKw(model, method, args, kwargs);
   }
 }
 
 export async function searchProducts(query) {
-  const results = await callOdoo('product.product', 'search_read', [
+  const results = await callKwWithRetry('product.product', 'search_read', [
     ['|', ['default_code', 'ilike', query], ['name', 'ilike', query]],
   ], { fields: ['id', 'name', 'default_code', 'lst_price'], limit: 20 });
   return results.map(p => ({
@@ -373,7 +233,7 @@ export async function searchProducts(query) {
 }
 
 export async function getPricelists() {
-  const results = await callOdoo('product.pricelist', 'search_read', [[]], {
+  const results = await callKwWithRetry('product.pricelist', 'search_read', [[]], {
     fields: ['id', 'name'],
   });
   return results.map(p => ({ id: p.id, name: p.name }));
@@ -381,26 +241,26 @@ export async function getPricelists() {
 
 export async function findSalesTeamId(teamName) {
   if (!teamName) return null;
-  const results = await callOdoo('crm.team', 'search_read', [
+  const results = await callKwWithRetry('crm.team', 'search_read', [
     [['name', '=', teamName]],
   ], { fields: ['id'], limit: 1 });
   return results[0]?.id ?? null;
 }
 
 // Busca por CUIT/DNI (campo "vat" en Odoo) y crea el partner si no existe.
-// Nota: no se cargan campos de responsabilidad fiscal AR (l10n_ar_*) porque
-// dependen de qué localización tenga instalada este Odoo — hay que
-// confirmarlo contra la instancia real antes de necesitar Factura A.
+// No se cargan campos de responsabilidad fiscal AR (l10n_ar_*) porque
+// dependen de qué localización tenga instalada este Odoo — confirmar
+// contra la instancia real antes de necesitar Factura A (ver spec).
 export async function findOrCreatePartner({ name, docNumber }) {
   if (docNumber) {
-    const existing = await callOdoo('res.partner', 'search_read', [
+    const existing = await callKwWithRetry('res.partner', 'search_read', [
       [['vat', '=', docNumber]],
     ], { fields: ['id'], limit: 1 });
     if (existing[0]) return existing[0].id;
   }
   const vals = { name };
   if (docNumber) vals.vat = docNumber;
-  const [id] = await callOdoo('res.partner', 'create', [[vals]]);
+  const [id] = await callKwWithRetry('res.partner', 'create', [[vals]]);
   return id;
 }
 
@@ -420,81 +280,76 @@ export function buildSaleOrderPayload({ partnerId, pricelistId, teamId, lines })
 }
 
 export async function createSaleOrder(vals) {
-  const [id] = await callOdoo('sale.order', 'create', [[vals]]);
+  const [id] = await callKwWithRetry('sale.order', 'create', [[vals]]);
   return id;
 }
 
 export async function confirmSaleOrder(orderId) {
-  await callOdoo('sale.order', 'action_confirm', [[orderId]]);
+  await callKwWithRetry('sale.order', 'action_confirm', [[orderId]]);
 }
 
 // Método estándar de Odoo 14+ para facturar un pedido confirmado. Si esta
-// instancia de Odoo usa una automatización propia para Tienda Nube (a
-// confirmar durante la implementación — ver spec), puede que haga falta
-// ajustar este método al que esa automatización realmente llama.
+// instancia usa una automatización propia para Tienda Nube (a confirmar
+// durante la implementación — ver spec), puede hacer falta ajustar este
+// método al que esa automatización realmente llama.
 export async function createInvoiceForOrder(orderId) {
   try {
-    const result = await callOdoo('sale.order', '_create_invoices', [[orderId]]);
+    const result = await callKwWithRetry('sale.order', '_create_invoices', [[orderId]]);
     return Array.isArray(result) ? (result[0] ?? null) : (result ?? null);
   } catch (err) {
-    console.error('[odoo] Error creando factura:', err.message);
+    console.error('[feriaOdoo] Error creando factura:', err.message);
     return null;
   }
 }
+
+export { getDb } from './firestore.mjs';
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **Step 5: Run test to verify it passes**
 
-Run (from `server/`): `npm test`
-Expected: PASS (2 tests)
+Run (from `backend/`): `npm test`
+Expected: PASS (87 tests — the 85 pre-existing ones plus these 2)
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add server/src/services/odoo.service.js server/src/services/odoo.service.test.js
-git commit -m "feat: cliente de Odoo con lectura de productos/pricelists y escritura de pedidos"
+git add backend/firestore.mjs backend/feriaOdoo.mjs backend/feriaOdoo.test.mjs
+git commit -m "feat(feria): operaciones de escritura en Odoo (partner, sale.order, factura)"
 ```
 
 ---
 
-### Task 3: Autenticación (PIN vendedor + usuario/contraseña caja)
+### Task 2: Autenticación (PIN vendedor + usuario/contraseña caja)
+
+**Repo/dir:** `Reportes`, worktree `Reportes/.worktrees/feature-feria-outlet/backend`
 
 **Files:**
-- Create: `server/src/services/firebase.service.js`
-- Create: `server/src/services/feriaAuth.service.js`
-- Create: `server/src/services/feriaAuth.service.test.js`
-- Create: `server/src/middleware/requireAuth.js`
+- Create: `backend/feriaAuth.mjs`
+- Create: `backend/feriaAuth.test.mjs`
 
 **Interfaces:**
-- Consumes: nada.
-- Produces (usados por Task 4 y las rutas de Task 5):
-  - `getDb()` → instancia de Firestore (desde `firebase.service.js`)
-  - `initFirebase()` → inicializa la app de firebase-admin
-  - `hashPassword(password)` → string
-  - `generateToken(payload)` → string (JWT, `payload` incluye siempre `role: 'vendedor' | 'caja'`)
-  - `verifyToken(token)` → objeto decodificado
+- Consumes: `getDb` from `./feriaOdoo.mjs` (Task 1's re-export — importing
+  it from there rather than `firestore.mjs` directly keeps every new feria
+  file pointing at the same one import path).
+- Produces (used by Task 3's routes):
+  - `generateToken(payload)` → `string` (payload always includes `role: 'vendedor' | 'caja'`)
+  - `verifyToken(token)` → decoded payload object, or `null` if invalid/expired
   - `validateSellerPin(pin)` → `Promise<{ id, name } | null>`
   - `validateCajaCredentials(email, password)` → `Promise<{ id, email, name } | null>`
   - `seedCajaAdminIfNeeded()` → `Promise<void>`
-  - middleware `requireAuth(req, res, next)` → setea `req.user`
-  - middleware factory `requireRole(role)` → `(req, res, next)`
+  - `requireFeriaAuth(req, res, next)` → sets `req.feriaUser`
+  - `requireFeriaRole(role)` → `(req, res, next)`
 
-- [ ] **Step 1: Write the failing tests for the pure/token logic**
+- [ ] **Step 1: Write the failing tests for the token logic**
 
-Create `server/src/services/feriaAuth.service.test.js`:
+Create `backend/feriaAuth.test.mjs`:
 
 ```js
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { hashPassword, generateToken, verifyToken } from './feriaAuth.service.js';
 
-process.env.JWT_SECRET = 'test-secret';
-
-test('hashPassword es determinístico y no devuelve el texto plano', () => {
-  const hash = hashPassword('altolett123');
-  assert.equal(hash, hashPassword('altolett123'));
-  assert.notEqual(hash, 'altolett123');
-});
+process.env.FERIA_AUTH_SECRET = 'test-secret';
+const { generateToken, verifyToken } = await import('./feriaAuth.mjs');
 
 test('generateToken + verifyToken hacen roundtrip con el payload', () => {
   const token = generateToken({ role: 'vendedor', id: 'v1', name: 'Ana' });
@@ -504,67 +359,72 @@ test('generateToken + verifyToken hacen roundtrip con el payload', () => {
   assert.equal(decoded.name, 'Ana');
 });
 
-test('verifyToken tira si el token es inválido', () => {
-  assert.throws(() => verifyToken('token-invalido'));
+test('verifyToken devuelve null si el token fue alterado', () => {
+  const token = generateToken({ role: 'caja', id: 'c1', name: 'Joaquín' });
+  const tampered = token.slice(0, -2) + 'xx';
+  assert.equal(verifyToken(tampered), null);
+});
+
+test('verifyToken devuelve null para un token con formato inválido', () => {
+  assert.equal(verifyToken('esto-no-es-un-token'), null);
+  assert.equal(verifyToken(''), null);
+  assert.equal(verifyToken(null), null);
 });
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run (from `server/`): `npm test`
-Expected: FAIL — módulos no existen.
+Run (from `backend/`): `npm test`
+Expected: FAIL — `feriaAuth.mjs` no existe.
 
-- [ ] **Step 3: Write `server/src/services/firebase.service.js`**
-
-```js
-import admin from 'firebase-admin';
-
-let db = null;
-
-export function initFirebase() {
-  if (admin.apps.length) return;
-  const { FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, FIREBASE_CLIENT_EMAIL } = process.env;
-  if (!FIREBASE_PRIVATE_KEY || !FIREBASE_CLIENT_EMAIL) {
-    console.warn('[firebase] Sin credenciales de service account — Firestore no disponible');
-    return;
-  }
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: FIREBASE_PROJECT_ID,
-      privateKey: FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-      clientEmail: FIREBASE_CLIENT_EMAIL,
-    }),
-  });
-  db = admin.firestore();
-  console.log('[firebase] Firestore conectado');
-}
-
-export function getDb() {
-  if (!db) throw new Error('Firestore no disponible — completá las credenciales en .env');
-  return db;
-}
-```
-
-- [ ] **Step 4: Write `server/src/services/feriaAuth.service.js`**
+- [ ] **Step 3: Write `backend/feriaAuth.mjs`**
 
 ```js
-import jwt from 'jsonwebtoken';
-import { createHash } from 'crypto';
-import { getDb } from './firebase.service.js';
+import 'dotenv/config';
+import crypto from 'node:crypto';
+import { getDb } from './feriaOdoo.mjs';
 
+const SECRET = process.env.FERIA_AUTH_SECRET;
+const TTL_SECONDS = 60 * 60 * 12; // 12hs — dura un turno del evento
 const SELLERS_COLLECTION = 'feria_sellers';
 const ADMINS_COLLECTION = 'feria_admins';
 
-export function hashPassword(password) {
-  return createHash('sha256').update(password).digest('hex');
+function sign(payload) {
+  return crypto.createHmac('sha256', SECRET).update(payload).digest('base64url');
 }
 
-export function generateToken(payload) {
-  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '12h' });
+function safeEqual(a, b) {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+function hashPassword(password) {
+  return crypto.createHash('sha256').update(password).digest('hex');
+}
+
+// Mismo esquema de token que auth.mjs (payload + firma HMAC en vez de
+// jsonwebtoken, para no sumar una dependencia nueva), extendido para
+// llevar rol e identidad en vez de solo la expiración.
+export function generateToken(data) {
+  const exp = Date.now() + TTL_SECONDS * 1000;
+  const payload = Buffer.from(JSON.stringify({ ...data, exp })).toString('base64url');
+  const signature = sign(payload);
+  return `${payload}.${signature}`;
 }
 
 export function verifyToken(token) {
-  return jwt.verify(token, process.env.JWT_SECRET);
+  if (!token || typeof token !== 'string' || !token.includes('.')) return null;
+  const [payload, signature] = token.split('.');
+  try {
+    if (!safeEqual(sign(payload), signature)) return null;
+    const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    if (typeof decoded.exp !== 'number' || Date.now() >= decoded.exp) return null;
+    return decoded;
+  } catch {
+    return null;
+  }
 }
 
 // feria_sellers/{id} = { name, pin }. Se carga a mano en Firestore cuando
@@ -587,8 +447,8 @@ export async function validateCajaCredentials(email, password) {
   return { id, email: data.email, name: data.name };
 }
 
-// Mismo patrón de seed que BOT-ALTORANCHO — primer usuario de caja para
-// poder entrar la primera vez. Cambiar la contraseña después del seed.
+// Primer usuario de caja para poder entrar la primera vez — cambiar la
+// contraseña después de correr esto una vez.
 export async function seedCajaAdminIfNeeded() {
   const db = getDb();
   const email = 'joaquin.dilernia@altorancho.com';
@@ -600,72 +460,65 @@ export async function seedCajaAdminIfNeeded() {
   });
   console.log('[feriaAuth] Admin de caja seedeado:', email);
 }
-```
 
-- [ ] **Step 5: Write `server/src/middleware/requireAuth.js`**
-
-```js
-import { verifyToken } from '../services/feriaAuth.service.js';
-
-export function requireAuth(req, res, next) {
+export function requireFeriaAuth(req, res, next) {
   const header = req.headers.authorization;
   const token = header?.startsWith('Bearer ') ? header.slice(7) : null;
-  if (!token) return res.status(401).json({ error: 'No autenticado' });
-  try {
-    req.user = verifyToken(token);
-    next();
-  } catch {
-    res.status(401).json({ error: 'Token inválido o expirado' });
-  }
+  const decoded = verifyToken(token);
+  if (!decoded) return res.status(401).json({ error: 'No autenticado' });
+  req.feriaUser = decoded;
+  next();
 }
 
-export function requireRole(role) {
+export function requireFeriaRole(role) {
   return (req, res, next) => {
-    if (req.user?.role !== role) return res.status(403).json({ error: 'Acceso restringido' });
+    if (req.feriaUser?.role !== role) return res.status(403).json({ error: 'Acceso restringido' });
     next();
   };
 }
 ```
 
-- [ ] **Step 6: Run test to verify it passes**
+- [ ] **Step 4: Run test to verify it passes**
 
-Run (from `server/`): `npm test`
-Expected: PASS (5 tests)
+Run (from `backend/`): `npm test`
+Expected: PASS (90 tests)
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add server/src/services/firebase.service.js server/src/services/feriaAuth.service.js server/src/services/feriaAuth.service.test.js server/src/middleware/requireAuth.js
-git commit -m "feat: autenticación por PIN (vendedor) y usuario/contraseña (caja)"
+git add backend/feriaAuth.mjs backend/feriaAuth.test.mjs
+git commit -m "feat(feria): login por PIN (vendedor) y usuario/contraseña (caja)"
 ```
 
 ---
 
-### Task 4: Pedidos (Firestore) — validación, creación, listado, confirmación
+### Task 3: Pedidos (Firestore) + rutas HTTP + wiring en `index.mjs`
+
+**Repo/dir:** `Reportes`, worktree `Reportes/.worktrees/feature-feria-outlet/backend`
 
 **Files:**
-- Create: `server/src/services/orders.service.js`
-- Create: `server/src/services/orders.service.test.js`
+- Create: `backend/feriaOrders.mjs`
+- Create: `backend/feriaOrders.test.mjs`
+- Create: `backend/feriaRoutes.mjs`
+- Modify: `backend/index.mjs` (mount the new router — one import line, one `app.use` line, nothing else touched)
+- Modify: `backend/.env.example` (document the 2 new vars from Global Constraints)
 
 **Interfaces:**
-- Consumes: `getDb()` de `firebase.service.js` (Task 3).
-- Produces (usados por las rutas de Task 5):
-  - `validateOrderInput(input)` → `{ valid: boolean, errors: string[] }` (función pura)
-  - `createOrder(input)` → `Promise<{ id, ...order }>` (guarda con `status: 'pendiente'`)
-  - `listOrdersByStatus(status)` → `Promise<Array<order>>`
-  - `getOrderById(id)` → `Promise<order|null>`
-  - `updateOrderPayment(id, { paymentMethod, invoiceType })` → `Promise<void>`
-  - `markOrderConfirmed(id, { odooOrderId, invoiceId })` → `Promise<void>`
-  - `markOrderError(id, errorDetail)` → `Promise<void>`
+- Consumes: `getDb` from `./feriaOdoo.mjs`; everything Task 1 and Task 2 produce.
+- Produces: the complete `/api/feria/*` HTTP surface the frontend (Tasks 5-7) talks to.
+
+No automated test for the routes/wiring layer — same convention as the rest
+of `Reportes/backend` (`index.mjs` itself has no tests either): verified by
+running the server and exercising the flow manually during Task 6's step 5.
 
 - [ ] **Step 1: Write the failing tests for `validateOrderInput`**
 
-Create `server/src/services/orders.service.test.js`:
+Create `backend/feriaOrders.test.mjs`:
 
 ```js
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateOrderInput } from './orders.service.js';
+import { validateOrderInput } from './feriaOrders.mjs';
 
 const validInput = {
   sellerId: 'v1',
@@ -678,8 +531,7 @@ const validInput = {
 };
 
 test('acepta un pedido completo y válido', () => {
-  const result = validateOrderInput(validInput);
-  assert.deepEqual(result, { valid: true, errors: [] });
+  assert.deepEqual(validateOrderInput(validInput), { valid: true, errors: [] });
 });
 
 test('rechaza un pedido sin líneas', () => {
@@ -701,10 +553,7 @@ test('rechaza método de pago inválido', () => {
 });
 
 test('rechaza una línea con cantidad 0 o negativa', () => {
-  const result = validateOrderInput({
-    ...validInput,
-    lines: [{ ...validInput.lines[0], qty: 0 }],
-  });
+  const result = validateOrderInput({ ...validInput, lines: [{ ...validInput.lines[0], qty: 0 }] });
   assert.equal(result.valid, false);
   assert.ok(result.errors.some(e => e.includes('cantidad')));
 });
@@ -712,13 +561,13 @@ test('rechaza una línea con cantidad 0 o negativa', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run (from `server/`): `npm test`
-Expected: FAIL — `orders.service.js` no existe.
+Run (from `backend/`): `npm test`
+Expected: FAIL — `feriaOrders.mjs` no existe.
 
-- [ ] **Step 3: Write `server/src/services/orders.service.js`**
+- [ ] **Step 3: Write `backend/feriaOrders.mjs`**
 
 ```js
-import { getDb } from './firebase.service.js';
+import { getDb } from './feriaOdoo.mjs';
 
 const COLLECTION = 'feria_orders';
 const PAYMENT_METHODS = new Set(['efectivo', 'tarjeta']);
@@ -790,10 +639,7 @@ export async function markOrderConfirmed(id, { odooOrderId, invoiceId = null }) 
   const db = getDb();
   await db.collection(COLLECTION).doc(id).update({
     status: invoiceId ? 'facturado' : 'confirmado',
-    odooOrderId,
-    invoiceId,
-    errorDetail: null,
-    updatedAt: new Date(),
+    odooOrderId, invoiceId, errorDetail: null, updatedAt: new Date(),
   });
 }
 
@@ -807,45 +653,26 @@ export async function markOrderError(id, errorDetail) {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run (from `server/`): `npm test`
-Expected: PASS (10 tests)
+Run (from `backend/`): `npm test`
+Expected: PASS (95 tests)
 
-- [ ] **Step 5: Commit**
-
-```bash
-git add server/src/services/orders.service.js server/src/services/orders.service.test.js
-git commit -m "feat: servicio de pedidos en Firestore con validación"
-```
-
----
-
-### Task 5: Rutas HTTP y wiring en `app.js`
-
-**Files:**
-- Create: `server/src/routes/auth.routes.js`
-- Create: `server/src/routes/products.routes.js`
-- Create: `server/src/routes/pricelists.routes.js`
-- Create: `server/src/routes/orders.routes.js`
-- Modify: `server/src/app.js`
-
-**Interfaces:**
-- Consumes: todo lo de Tasks 2, 3 y 4 (`odoo.service.js`, `feriaAuth.service.js`, `orders.service.js`, `requireAuth.js`).
-- Produces: la API HTTP completa que consume el frontend (Tasks 6-8).
-
-No hay test automatizado para esta capa (mismo criterio que BOT-ALTORANCHO:
-no hay librería de mocking de HTTP en el proyecto, así que las rutas que
-llaman a Odoo se prueban a mano contra la instancia real durante la
-implementación, no con tests unitarios).
-
-- [ ] **Step 1: Write `server/src/routes/auth.routes.js`**
+- [ ] **Step 5: Write `backend/feriaRoutes.mjs`**
 
 ```js
 import { Router } from 'express';
-import { validateSellerPin, validateCajaCredentials, generateToken } from '../services/feriaAuth.service.js';
+import { requireFeriaAuth, requireFeriaRole, validateSellerPin, validateCajaCredentials, generateToken } from './feriaAuth.mjs';
+import {
+  createOrder, listOrdersByStatus, getOrderById,
+  updateOrderPayment, markOrderConfirmed, markOrderError,
+} from './feriaOrders.mjs';
+import {
+  searchProducts, getPricelists, findOrCreatePartner, findSalesTeamId,
+  buildSaleOrderPayload, createSaleOrder, confirmSaleOrder, createInvoiceForOrder,
+} from './feriaOdoo.mjs';
 
 const router = Router();
 
-router.post('/vendedor', async (req, res) => {
+router.post('/auth/vendedor', async (req, res) => {
   try {
     const { pin } = req.body;
     if (!pin) return res.status(400).json({ error: 'Falta el PIN' });
@@ -858,7 +685,7 @@ router.post('/vendedor', async (req, res) => {
   }
 });
 
-router.post('/caja', async (req, res) => {
+router.post('/auth/caja', async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Faltan credenciales' });
@@ -871,73 +698,28 @@ router.post('/caja', async (req, res) => {
   }
 });
 
-export default router;
-```
-
-- [ ] **Step 2: Write `server/src/routes/products.routes.js`**
-
-```js
-import { Router } from 'express';
-import { searchProducts } from '../services/odoo.service.js';
-import { requireAuth } from '../middleware/requireAuth.js';
-
-const router = Router();
-
-router.get('/search', requireAuth, async (req, res) => {
+router.get('/products/search', requireFeriaAuth, async (req, res) => {
   try {
     const q = req.query.q?.trim();
     if (!q) return res.json({ products: [] });
-    const products = await searchProducts(q);
-    res.json({ products });
+    res.json({ products: await searchProducts(q) });
   } catch (err) {
     res.status(502).json({ error: `Error consultando Odoo: ${err.message}` });
   }
 });
 
-export default router;
-```
-
-- [ ] **Step 3: Write `server/src/routes/pricelists.routes.js`**
-
-```js
-import { Router } from 'express';
-import { getPricelists } from '../services/odoo.service.js';
-import { requireAuth } from '../middleware/requireAuth.js';
-
-const router = Router();
-
-router.get('/', requireAuth, async (req, res) => {
+router.get('/pricelists', requireFeriaAuth, async (req, res) => {
   try {
-    const pricelists = await getPricelists();
-    res.json({ pricelists });
+    res.json({ pricelists: await getPricelists() });
   } catch (err) {
     res.status(502).json({ error: `Error consultando Odoo: ${err.message}` });
   }
 });
 
-export default router;
-```
-
-- [ ] **Step 4: Write `server/src/routes/orders.routes.js`**
-
-```js
-import { Router } from 'express';
-import { requireAuth, requireRole } from '../middleware/requireAuth.js';
-import {
-  createOrder, listOrdersByStatus, getOrderById,
-  updateOrderPayment, markOrderConfirmed, markOrderError,
-} from '../services/orders.service.js';
-import {
-  findOrCreatePartner, findSalesTeamId, buildSaleOrderPayload,
-  createSaleOrder, confirmSaleOrder, createInvoiceForOrder,
-} from '../services/odoo.service.js';
-
-const router = Router();
-
-router.post('/', requireAuth, requireRole('vendedor'), async (req, res) => {
+router.post('/orders', requireFeriaAuth, requireFeriaRole('vendedor'), async (req, res) => {
   try {
     const order = await createOrder({
-      ...req.body, sellerId: req.user.id, sellerName: req.user.name,
+      ...req.body, sellerId: req.feriaUser.id, sellerName: req.feriaUser.name,
     });
     res.status(201).json({ order });
   } catch (err) {
@@ -945,27 +727,24 @@ router.post('/', requireAuth, requireRole('vendedor'), async (req, res) => {
   }
 });
 
-router.get('/', requireAuth, requireRole('caja'), async (req, res) => {
+router.get('/orders', requireFeriaAuth, requireFeriaRole('caja'), async (req, res) => {
   try {
-    const status = req.query.status || 'pendiente';
-    const orders = await listOrdersByStatus(status);
-    res.json({ orders });
+    res.json({ orders: await listOrdersByStatus(req.query.status || 'pendiente') });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-router.get('/:id', requireAuth, async (req, res) => {
+router.get('/orders/:id', requireFeriaAuth, async (req, res) => {
   const order = await getOrderById(req.params.id);
   if (!order) return res.status(404).json({ error: 'Pedido no encontrado' });
   res.json({ order });
 });
 
-router.patch('/:id/payment', requireAuth, requireRole('caja'), async (req, res) => {
+router.patch('/orders/:id/payment', requireFeriaAuth, requireFeriaRole('caja'), async (req, res) => {
   try {
     await updateOrderPayment(req.params.id, req.body);
-    const order = await getOrderById(req.params.id);
-    res.json({ order });
+    res.json({ order: await getOrderById(req.params.id) });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -973,9 +752,8 @@ router.patch('/:id/payment', requireAuth, requireRole('caja'), async (req, res) 
 
 // Confirma el pedido: crea (o busca) el partner, arma y crea el sale.order
 // en Odoo con el Equipo de ventas de la feria, lo confirma, y factura si
-// corresponde. Se puede llamar de nuevo sin problema si quedó en 'error'
-// (reintento simple, no hay endpoint separado).
-router.post('/:id/confirm', requireAuth, requireRole('caja'), async (req, res) => {
+// corresponde. Se puede llamar de nuevo sin problema si quedó en 'error'.
+router.post('/orders/:id/confirm', requireFeriaAuth, requireFeriaRole('caja'), async (req, res) => {
   const order = await getOrderById(req.params.id);
   if (!order) return res.status(404).json({ error: 'Pedido no encontrado' });
 
@@ -985,9 +763,7 @@ router.post('/:id/confirm', requireAuth, requireRole('caja'), async (req, res) =
     });
     const teamId = await findSalesTeamId(process.env.ODOO_FERIA_TEAM_NAME);
     const vals = buildSaleOrderPayload({
-      partnerId,
-      pricelistId: order.pricelistId,
-      teamId,
+      partnerId, pricelistId: order.pricelistId, teamId,
       lines: order.lines.map(l => ({
         productId: l.productId, qty: l.qty, unitPrice: l.unitPrice, discountPct: l.discountPct,
       })),
@@ -996,13 +772,10 @@ router.post('/:id/confirm', requireAuth, requireRole('caja'), async (req, res) =
     await confirmSaleOrder(odooOrderId);
 
     let invoiceId = null;
-    if (order.invoiceType) {
-      invoiceId = await createInvoiceForOrder(odooOrderId);
-    }
+    if (order.invoiceType) invoiceId = await createInvoiceForOrder(odooOrderId);
 
     await markOrderConfirmed(order.id, { odooOrderId, invoiceId });
-    const updated = await getOrderById(order.id);
-    res.json({ order: updated });
+    res.json({ order: await getOrderById(order.id) });
   } catch (err) {
     await markOrderError(order.id, err.message);
     res.status(502).json({ error: `No se pudo confirmar en Odoo: ${err.message}` });
@@ -1012,55 +785,81 @@ router.post('/:id/confirm', requireAuth, requireRole('caja'), async (req, res) =
 export default router;
 ```
 
-- [ ] **Step 5: Wire everything into `server/src/app.js`**
+- [ ] **Step 6: Mount the router in `index.mjs`**
+
+Open `backend/index.mjs`. Add two imports near the other local imports
+(after `import { fetchAdThumbnail } from './meta.mjs';`):
 
 ```js
-import 'dotenv/config';
-import express from 'express';
-import cors from 'cors';
-import { initFirebase } from './services/firebase.service.js';
-import { seedCajaAdminIfNeeded } from './services/feriaAuth.service.js';
-import authRoutes from './routes/auth.routes.js';
-import productsRoutes from './routes/products.routes.js';
-import pricelistsRoutes from './routes/pricelists.routes.js';
-import ordersRoutes from './routes/orders.routes.js';
-
-initFirebase();
-
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-app.get('/health', (req, res) => res.json({ ok: true }));
-app.use('/api/auth', authRoutes);
-app.use('/api/products', productsRoutes);
-app.use('/api/pricelists', pricelistsRoutes);
-app.use('/api/orders', ordersRoutes);
-
-if (process.env.NODE_ENV !== 'test' && import.meta.url === `file://${process.argv[1]}`) {
-  seedCajaAdminIfNeeded().catch(err => console.error('[app] Error seedeando admin:', err.message));
-  const port = process.env.PORT || 5000;
-  app.listen(port, () => console.log(`[feria-alto] server listo en :${port}`));
-}
-
-export default app;
+import feriaRoutes from './feriaRoutes.mjs';
+import { seedCajaAdminIfNeeded } from './feriaAuth.mjs';
 ```
 
-- [ ] **Step 6: Run the full test suite to make sure nothing broke**
+Add one `app.use` line right after the existing `app.use(express.json());`
+line (before the `/health` route — order doesn't matter here, but keeping
+new feature mounts together and near the top makes them easy to find):
 
-Run (from `server/`): `npm test`
-Expected: PASS (10 tests — el `app.test.js` de Task 1 sigue pasando)
+```js
+app.use('/api/feria', feriaRoutes);
+```
 
-- [ ] **Step 7: Commit**
+Finally, seed the first caja admin at startup — same idea as the cron
+schedule at the bottom of the file, which also only runs when the server
+actually starts (not on every module import, e.g. from tests). Change:
+
+```js
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  app.listen(PORT, () => console.log(`[server] listening on :${PORT}`));
+}
+```
+
+to:
+
+```js
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  seedCajaAdminIfNeeded().catch(err => console.error('[feria] Error seedeando admin:', err.message));
+  app.listen(PORT, () => console.log(`[server] listening on :${PORT}`));
+}
+```
+
+Do not touch anything else in this file — no existing route, the cron
+schedule, and the `/health` endpoint stay exactly as they are.
+
+- [ ] **Step 7: Document the new env vars**
+
+Append to `backend/.env.example` (create the file with just these two lines
+if it doesn't already have a section for this):
+
+```
+# Feria outlet — auth de vendedor/caja y Equipo de ventas en Odoo
+FERIA_AUTH_SECRET=
+ODOO_FERIA_TEAM_NAME=Feria Octubre 2026
+```
+
+- [ ] **Step 8: Run the full test suite to make sure nothing broke**
+
+Run (from `backend/`): `npm test`
+Expected: PASS (95 tests — nothing in the pre-existing 85 changed)
+
+- [ ] **Step 9: Start the server locally and smoke-test one endpoint**
+
+Run (from `backend/`): `npm run dev`
+In another terminal: `curl http://localhost:3000/api/feria/pricelists` —
+expect a `401 {"error":"No autenticado"}` (proves the route is mounted and
+guarded, without needing real credentials yet).
+
+- [ ] **Step 10: Commit**
 
 ```bash
-git add server/src/routes server/src/app.js
-git commit -m "feat: rutas de auth, productos, pricelists y pedidos (crear/listar/confirmar)"
+git add backend/feriaOrders.mjs backend/feriaOrders.test.mjs backend/feriaRoutes.mjs backend/index.mjs backend/.env.example
+git commit -m "feat(feria): pedidos en Firestore + rutas /api/feria/* montadas en index.mjs"
 ```
 
 ---
 
-### Task 6: Scaffold del frontend + branding Alto Rancho
+### Task 4: Scaffold del frontend + branding Alto Rancho
+
+**Repo/dir:** `feria-alto` (this repo, work on `master`)
 
 **Files:**
 - Create: `client/package.json`
@@ -1069,13 +868,17 @@ git commit -m "feat: rutas de auth, productos, pricelists y pedidos (crear/lista
 - Create: `client/src/main.jsx`
 - Create: `client/src/App.jsx`
 - Create: `client/src/lib/api.js`
-- Create: `client/src/styles/global.css` (copiado de BOT-ALTORANCHO)
-- Copy: `client/src/assets/ALTORANCHO.png` (copiado de `pick-alto/src/assets/ALTORANCHO.png`)
+- Create: `client/src/styles/global.css` (copied from BOT-ALTORANCHO)
+- Copy: `client/src/assets/ALTORANCHO.png` (copied from `pick-alto/src/assets/ALTORANCHO.png`)
 
 **Interfaces:**
-- Produces (usados por Tasks 7 y 8):
-  - `apiFetch(path, options)` → `Promise<any>` (agrega `Authorization: Bearer <token>` desde `localStorage.getItem('feria_token')`, tira si la respuesta no es ok)
-  - CSS variables globales (`--color-primary`, `--font-sans`, `--space-*`, etc.) disponibles en toda la app.
+- Produces (used by Tasks 5-6):
+  - `apiFetch(path, options)` → `Promise<any>` — sends
+    `Authorization: Bearer <token>` from `localStorage.getItem('feria_token')`;
+    `path` is always the full `/api/feria/...` path, since `BASE_URL` points
+    at `Reportes/backend`'s own root (it has no other `/api/feria` prefix
+    of its own to collide with).
+  - CSS variables (`--color-primary`, `--font-sans`, `--space-*`, etc.)
 
 - [ ] **Step 1: Create `client/package.json`**
 
@@ -1139,19 +942,19 @@ export default defineConfig({
 
 - [ ] **Step 4: Copy the design tokens file verbatim**
 
-Copiar el contenido completo de
-`BOT-ALTORANCHO/client/src/styles/global.css` a `client/src/styles/global.css`
-sin modificaciones (paleta, tipografía Poppins, espaciados, sombras — ya
-está resuelto ahí).
+Copy the full contents of
+`BOT-ALTORANCHO/client/src/styles/global.css` into
+`client/src/styles/global.css`, unmodified (palette, Poppins, spacing,
+shadows — already solved there).
 
 - [ ] **Step 5: Copy the logo asset**
 
-Copiar `pick-alto/src/assets/ALTORANCHO.png` a `client/src/assets/ALTORANCHO.png`.
+Copy `pick-alto/src/assets/ALTORANCHO.png` to `client/src/assets/ALTORANCHO.png`.
 
 - [ ] **Step 6: Create `client/src/lib/api.js`**
 
 ```js
-export const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+export const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 export async function apiFetch(path, options = {}) {
   const token = localStorage.getItem('feria_token');
@@ -1183,7 +986,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 );
 ```
 
-- [ ] **Step 8: Create `client/src/App.jsx`** (rutas — los componentes de página los crean las Tasks 7 y 8; por ahora placeholders mínimos para que el routing sea navegable de punta a punta)
+- [ ] **Step 8: Create `client/src/App.jsx`**
 
 ```jsx
 import { Routes, Route, Navigate } from 'react-router-dom';
@@ -1207,15 +1010,16 @@ export default function App() {
 }
 ```
 
-Nota: `App.jsx` importa `pages/VendedorLogin.jsx`, `pages/VendedorPanel.jsx`,
-`pages/CajaLogin.jsx` y `pages/CajaPanel.jsx`, que todavía no existen — eso
-se resuelve en las Tasks 7 y 8. Este archivo queda escrito ya con esos
-imports para no tener que volver a tocarlo.
+This file imports `pages/VendedorLogin.jsx`, `pages/VendedorPanel.jsx`,
+`pages/CajaLogin.jsx` and `pages/CajaPanel.jsx`, which don't exist yet —
+Tasks 5 and 6 create them. Writing it now avoids touching this file again
+later.
 
 - [ ] **Step 9: Install deps**
 
 Run (from `client/`): `npm install`
-Expected: instala sin errores (el build todavía va a fallar hasta la Task 7, es esperado).
+Expected: installs cleanly (the build won't succeed until Task 5 exists —
+expected at this point).
 
 - [ ] **Step 10: Commit**
 
@@ -1226,7 +1030,9 @@ git commit -m "chore: scaffold del frontend con branding de Alto Rancho (colores
 
 ---
 
-### Task 7: Panel Vendedor
+### Task 5: Panel Vendedor
+
+**Repo/dir:** `feria-alto` (this repo, work on `master`)
 
 **Files:**
 - Create: `client/src/pages/VendedorLogin.jsx`
@@ -1235,12 +1041,14 @@ git commit -m "chore: scaffold del frontend con branding de Alto Rancho (colores
 - Create: `client/src/pages/VendedorPanel.module.css`
 
 **Interfaces:**
-- Consumes: `apiFetch` de `lib/api.js` (Task 6). Endpoints: `POST /api/auth/vendedor`, `GET /api/products/search?q=`, `GET /api/pricelists`, `POST /api/orders`.
-- Produces: nada consumido por otras tasks (hoja del árbol de UI).
+- Consumes: `apiFetch` from `lib/api.js` (Task 4). Endpoints (all under the
+  `/api/feria` prefix Task 3 mounted): `POST /api/feria/auth/vendedor`,
+  `GET /api/feria/products/search?q=`, `GET /api/feria/pricelists`,
+  `POST /api/feria/orders`.
 
-No hay tests automatizados de componentes React en este proyecto (mismo
-criterio que BOT-ALTORANCHO, que tampoco testea UI) — se verifica corriendo
-`npm run dev` y probando el flujo a mano.
+No automated component tests in this project (same convention as
+BOT-ALTORANCHO, which doesn't test React UI either) — verified by running
+`npm run dev` and trying the flow by hand.
 
 - [ ] **Step 1: Write `client/src/pages/VendedorLogin.jsx`**
 
@@ -1259,7 +1067,7 @@ export default function VendedorLogin() {
     setError('');
     setLoading(true);
     try {
-      const { token, seller } = await apiFetch('/api/auth/vendedor', {
+      const { token, seller } = await apiFetch('/api/feria/auth/vendedor', {
         method: 'POST', body: JSON.stringify({ pin }),
       });
       localStorage.setItem('feria_token', token);
@@ -1368,7 +1176,7 @@ export default function VendedorPanel() {
   const searchTimeout = useRef(null);
 
   useEffect(() => {
-    apiFetch('/api/pricelists').then(({ pricelists }) => setPricelists(pricelists)).catch(() => {});
+    apiFetch('/api/feria/pricelists').then(({ pricelists }) => setPricelists(pricelists)).catch(() => {});
   }, []);
 
   function handleQueryChange(value) {
@@ -1377,7 +1185,7 @@ export default function VendedorPanel() {
     if (!value.trim()) return setResults([]);
     searchTimeout.current = setTimeout(async () => {
       try {
-        const { products } = await apiFetch(`/api/products/search?q=${encodeURIComponent(value)}`);
+        const { products } = await apiFetch(`/api/feria/products/search?q=${encodeURIComponent(value)}`);
         setResults(products);
       } catch {
         setResults([]);
@@ -1408,7 +1216,7 @@ export default function VendedorPanel() {
     setStatus('Enviando...');
     try {
       const selectedPricelist = pricelists.find(p => String(p.id) === String(pricelistId));
-      await apiFetch('/api/orders', {
+      await apiFetch('/api/feria/orders', {
         method: 'POST',
         body: JSON.stringify({
           customer, paymentMethod,
@@ -1582,13 +1390,15 @@ export default function VendedorPanel() {
 .submitBtn:disabled { opacity: 0.5; }
 ```
 
-- [ ] **Step 5: Verify the flow manually**
+- [ ] **Step 5: Verify manually**
 
-Run (from `server/`): `npm run dev`
-Run (from `client/`, in another terminal): `npm run dev`
-Abrir la URL de Vite, entrar con un PIN de prueba cargado a mano en
-`feria_sellers` en Firestore, buscar un producto real de Odoo, armar un
-pedido y confirmar que aparece en Firestore con `status: 'pendiente'`.
+Run (from `Reportes/.worktrees/feature-feria-outlet/backend/`): `npm run dev`
+Run (from `feria-alto/client/`, another terminal): `npm run dev`, with
+`VITE_API_URL=http://localhost:3000` (backend's local port from
+`index.mjs`'s `PORT` default).
+Open the Vite URL, log in with a test PIN loaded by hand into `feria_sellers`
+in Firestore, search a real Odoo product, build an order, and confirm it
+lands in Firestore's `feria_orders` with `status: 'pendiente'`.
 
 - [ ] **Step 6: Commit**
 
@@ -1599,7 +1409,9 @@ git commit -m "feat: panel Vendedor (login por PIN, búsqueda de productos, carg
 
 ---
 
-### Task 8: Panel Caja/Admin
+### Task 6: Panel Caja/Admin
+
+**Repo/dir:** `feria-alto` (this repo, work on `master`)
 
 **Files:**
 - Create: `client/src/pages/CajaLogin.jsx`
@@ -1608,7 +1420,9 @@ git commit -m "feat: panel Vendedor (login por PIN, búsqueda de productos, carg
 - Create: `client/src/pages/CajaPanel.module.css`
 
 **Interfaces:**
-- Consumes: `apiFetch` de `lib/api.js`. Endpoints: `POST /api/auth/caja`, `GET /api/orders?status=pendiente`, `PATCH /api/orders/:id/payment`, `POST /api/orders/:id/confirm`.
+- Consumes: `apiFetch` from `lib/api.js`. Endpoints: `POST /api/feria/auth/caja`,
+  `GET /api/feria/orders?status=pendiente`, `PATCH /api/feria/orders/:id/payment`,
+  `POST /api/feria/orders/:id/confirm`.
 
 - [ ] **Step 1: Write `client/src/pages/CajaLogin.jsx`**
 
@@ -1628,7 +1442,7 @@ export default function CajaLogin() {
     setError('');
     setLoading(true);
     try {
-      const { token, user } = await apiFetch('/api/auth/caja', {
+      const { token, user } = await apiFetch('/api/feria/auth/caja', {
         method: 'POST', body: JSON.stringify({ email, password }),
       });
       localStorage.setItem('feria_token', token);
@@ -1729,7 +1543,7 @@ export default function CajaPanel() {
 
   const loadOrders = useCallback(async () => {
     try {
-      const { orders } = await apiFetch('/api/orders?status=pendiente');
+      const { orders } = await apiFetch('/api/feria/orders?status=pendiente');
       setOrders(orders);
     } catch {
       // Silencioso — reintenta en el próximo poll.
@@ -1752,11 +1566,11 @@ export default function CajaPanel() {
     setConfirming(true);
     try {
       if (invoiceType) {
-        await apiFetch(`/api/orders/${selected.id}/payment`, {
+        await apiFetch(`/api/feria/orders/${selected.id}/payment`, {
           method: 'PATCH', body: JSON.stringify({ invoiceType }),
         });
       }
-      await apiFetch(`/api/orders/${selected.id}/confirm`, { method: 'POST' });
+      await apiFetch(`/api/feria/orders/${selected.id}/confirm`, { method: 'POST' });
       setSelected(null);
       loadOrders();
     } catch (err) {
@@ -1882,11 +1696,11 @@ export default function CajaPanel() {
 
 - [ ] **Step 5: Verify the end-to-end flow manually**
 
-Con el server y el client corriendo: cargar un pedido desde `/vendedor`,
-verificar que aparece en `/caja` dentro de 5 segundos, abrirlo, elegir
-Factura B, confirmar, y chequear en Odoo que se creó el `sale.order` con el
-Equipo de ventas correcto (o el error que devuelva, si el nombre del equipo
-todavía no existe en Odoo — es uno de los puntos pendientes del spec).
+With backend and client both running: load an order from `/vendedor`,
+confirm it shows up on `/caja` within 5 seconds, open it, pick Factura B,
+confirm, and check in Odoo that the `sale.order` was created with the
+right Equipo de ventas (or the error it returns, if that team name doesn't
+exist in Odoo yet — one of the spec's open items).
 
 - [ ] **Step 6: Commit**
 
@@ -1897,45 +1711,53 @@ git commit -m "feat: panel Caja (login, lista de pedidos en vivo, confirmar vent
 
 ---
 
-### Task 9: Deploy en Railway
+### Task 7: Deploy — documentar ambos lados
+
+**Repo/dir:** `feria-alto` (README) — no backend deploy task, it rides on
+`Reportes/backend`'s existing Railway service once its branch merges.
 
 **Files:**
-- Create: `server/Procfile` (opcional, Railway lo detecta solo por `start` script, pero lo dejamos explícito)
-- Modify: `README.md`
+- Create: `README.md`
 
-**Interfaces:** ninguna (tarea de configuración/documentación).
+**Interfaces:** none — documentation only.
 
-- [ ] **Step 1: Create `server/Procfile`**
-
-```
-web: node src/app.js
-```
-
-- [ ] **Step 2: Update `README.md` with deploy instructions**
+- [ ] **Step 1: Create `README.md`**
 
 ```markdown
-## Deploy (Railway)
+# Feria Outlet Alto Rancho — frontend
 
-Este repo tiene dos apps que se deployan como dos servicios separados de
-Railway, apuntando cada uno a su propio "root directory":
+Dos paneles — Vendedor y Caja — para cargar y cobrar pedidos de la feria
+outlet de Alto Rancho, con carga automática a Odoo (pedido + factura).
 
-1. **Backend** — nuevo servicio en Railway, root directory `server/`,
-   variables de entorno según `server/.env.example` (mismas credenciales de
-   Odoo y Firebase que BOT-ALTORANCHO, más `JWT_SECRET` y
-   `ODOO_FERIA_TEAM_NAME` propios de este proyecto).
-2. **Frontend** — otro servicio, root directory `client/`, build command
-   `npm run build`, variable `VITE_API_URL` apuntando a la URL pública del
-   servicio de backend.
+El backend **no está en este repo** — corre dentro de
+`Reportes/backend` (rutas bajo `/api/feria/*`, rama
+`feature/feria-outlet` hasta que se mergee). Este repo tiene solo el
+frontend (`client/`).
 
-Antes del primer uso: cargar a mano en Firestore la colección
+Ver el diseño completo en `docs/superpowers/specs/2026-09-18-feria-outlet-design.md`
+y el plan de implementación en `docs/superpowers/plans/2026-09-18-feria-outlet-plan.md`.
+
+## Deploy
+
+- **Backend**: no hay nada que deployar aparte — cuando la rama
+  `feature/feria-outlet` de `Reportes` se mergea a `main`, las rutas
+  `/api/feria/*` quedan disponibles en el mismo servicio de Railway que ya
+  corre los reportes. Variables de entorno nuevas a cargar en ese servicio:
+  `FERIA_AUTH_SECRET`, `ODOO_FERIA_TEAM_NAME` (ver
+  `Reportes/backend/.env.example`).
+- **Frontend**: deploy propio, liviano (build estático con `npm run build`
+  en `client/`), con `VITE_API_URL` apuntando a la URL pública del servicio
+  de Reportes.
+
+Antes del primer uso real: cargar a mano en Firestore la colección
 `feria_sellers` (documentos `{ name, pin }`) con los vendedores reales, y
 crear en Odoo el Equipo de ventas con el nombre que se ponga en
 `ODOO_FERIA_TEAM_NAME`, y las pricelists reales de la feria.
 ```
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 2: Commit**
 
 ```bash
-git add server/Procfile README.md
-git commit -m "docs: instrucciones de deploy en Railway"
+git add README.md
+git commit -m "docs: README con instrucciones de deploy (backend vive en Reportes)"
 ```
