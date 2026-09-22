@@ -10,9 +10,18 @@ const PAYMENT_METHODS = [
 
 const SEARCH_MIN_CHARS = 6;
 
+// Devuelve null mientras no haya medio de pago elegido — el descuento depende
+// del medio de pago, así que antes de elegirlo no hay precio final que mostrar.
 function finalUnitPrice(tablePrice, paymentMethod) {
   const method = PAYMENT_METHODS.find(m => m.value === paymentMethod);
+  if (!method) return null;
   return Math.round(tablePrice * (1 - method.discountPct / 100));
+}
+
+function logout() {
+  localStorage.removeItem('feria_token');
+  localStorage.removeItem('feria_role');
+  window.location.reload();
 }
 
 export default function VendedorPanel() {
@@ -22,7 +31,7 @@ export default function VendedorPanel() {
   const [lines, setLines] = useState([]);
   const [customer, setCustomer] = useState({ name: '', docNumber: '' });
   const [lookupStatus, setLookupStatus] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('efectivo');
+  const [paymentMethod, setPaymentMethod] = useState('');
   const [status, setStatus] = useState('');
   const searchTimeout = useRef(null);
   const lookupTimeout = useRef(null);
@@ -80,23 +89,47 @@ export default function VendedorPanel() {
     setLines(prev => prev.filter((_, i) => i !== index));
   }
 
-  const total = lines.reduce((sum, l) => sum + l.qty * finalUnitPrice(l.tablePrice, paymentMethod), 0);
+  const total = paymentMethod
+    ? lines.reduce((sum, l) => sum + l.qty * finalUnitPrice(l.tablePrice, paymentMethod), 0)
+    : null;
 
   async function handleSubmit() {
-    setStatus('Enviando...');
+    if (!canSubmit) return;
+    setStatus('Confirmando precios actuales...');
     try {
+      // El precio se vuelve a pedir recién al enviar: caja puede activar una
+      // rebaja mientras el pedido está abierto en la tablet, y el precio que
+      // se guardó al agregar la línea ya puede estar viejo.
+      const priceCache = new Map();
+      const freshLines = [];
+      for (const line of lines) {
+        if (!priceCache.has(line.sku)) {
+          const { products } = await apiFetch(
+            `/api/feria/products/search?q=${encodeURIComponent(line.sku)}`,
+          );
+          priceCache.set(line.sku, products.find(p => p.sku === line.sku) || null);
+        }
+        const fresh = priceCache.get(line.sku);
+        const info = fresh?.condiciones?.[line.condition];
+        if (!info || !info.disponible || info.precioTabla == null) {
+          throw new Error(
+            `No se pudo confirmar el precio actual de ${line.modelo} — sacalo del pedido y volvé a agregarlo.`,
+          );
+        }
+        freshLines.push({
+          sku: line.sku, modelo: line.modelo, condition: line.condition,
+          qty: line.qty, unitPrice: finalUnitPrice(info.precioTabla, paymentMethod),
+        });
+      }
+
+      setStatus('Enviando...');
       await apiFetch('/api/feria/orders', {
         method: 'POST',
-        body: JSON.stringify({
-          customer, paymentMethod,
-          lines: lines.map(l => ({
-            sku: l.sku, modelo: l.modelo, condition: l.condition,
-            qty: l.qty, unitPrice: finalUnitPrice(l.tablePrice, paymentMethod),
-          })),
-        }),
+        body: JSON.stringify({ customer, paymentMethod, lines: freshLines }),
       });
       setLines([]);
       setCustomer({ name: '', docNumber: '' });
+      setPaymentMethod('');
       setLookupStatus('');
       setStatus('¡Pedido enviado a caja!');
       setTimeout(() => setStatus(''), 3000);
@@ -105,12 +138,13 @@ export default function VendedorPanel() {
     }
   }
 
-  const canSubmit = lines.length > 0 && customer.name.trim() && customer.docNumber.trim();
+  const canSubmit = lines.length > 0 && customer.name.trim() && customer.docNumber.trim() && paymentMethod;
 
   return (
     <div className={styles.page}>
       <header className={styles.header}>
         <span>Vendedor: {seller.name}</span>
+        <button type="button" className={styles.logoutBtn} onClick={logout}>Salir</button>
       </header>
 
       <div className={styles.field}>
@@ -152,13 +186,19 @@ export default function VendedorPanel() {
               className={styles.qtyInput} type="number" min="1" value={line.qty}
               onChange={(e) => updateQty(i, Number(e.target.value))}
             />
-            <span>${(line.qty * finalUnitPrice(line.tablePrice, paymentMethod)).toFixed(0)}</span>
+            <span>
+              {paymentMethod
+                ? `$${(line.qty * finalUnitPrice(line.tablePrice, paymentMethod)).toFixed(0)}`
+                : '—'}
+            </span>
             <button className={styles.removeBtn} onClick={() => removeLine(i)}>✕</button>
           </div>
         ))}
       </div>
 
-      <div className={styles.total}>Total: ${total.toFixed(0)}</div>
+      <div className={styles.total}>
+        {paymentMethod ? `Total: $${total.toFixed(0)}` : 'Elegí un medio de pago para ver el total'}
+      </div>
 
       <div className={styles.field}>
         <label className={styles.label}>Medio de pago (obligatorio)</label>

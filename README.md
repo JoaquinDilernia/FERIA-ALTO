@@ -34,6 +34,12 @@ feria, cliente por DNI y el panel público).
 - **Frontend**: deploy propio, liviano (build estático con `npm run build`
   en `client/`), con `VITE_API_URL` apuntando a la URL pública del servicio
   de Reportes.
+- **Ruteo**: las rutas usan URLs con hash (`/#/vendedor`, `/#/caja`,
+  `/#/feria`) justamente para no depender de ninguna configuración de
+  rewrite del lado del servidor — el navegador nunca manda el hash al host,
+  así que alcanza con que sirva `index.html` y entrar directo desde un QR
+  funciona en cualquier host estático. **Ojo al armar el QR o el link del
+  panel público: la URL real lleva el `#`** (`https://.../#/feria`).
 
 Antes del primer uso real:
 - Cargar a mano en Firestore la colección `feria_sellers` (documentos

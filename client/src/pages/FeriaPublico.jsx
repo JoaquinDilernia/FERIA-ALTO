@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { apiFetch } from '../lib/api.js';
 import styles from './FeriaPublico.module.css';
+import logo from '../assets/ALTORANCHO.png';
 
 const SEARCH_MIN_CHARS = 6;
 const CONDITION_LABELS = { falla: 'Falla', discontinuo: 'Discontinuo' };
@@ -34,7 +35,7 @@ export default function FeriaPublico() {
 
   return (
     <div className={styles.page}>
-      <img src="/src/assets/ALTORANCHO.png" alt="Alto Rancho" className={styles.logo} />
+      <img src={logo} alt="Alto Rancho" className={styles.logo} />
       <h1 className={styles.title}>Feria Outlet — Consultá tu precio</h1>
       <input
         className={styles.input}

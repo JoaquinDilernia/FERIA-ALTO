@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { apiFetch } from '../lib/api.js';
 import styles from './CajaLogin.module.css';
+import logo from '../assets/ALTORANCHO.png';
 
 export default function CajaLogin() {
   const [email, setEmail] = useState('');
@@ -30,7 +31,7 @@ export default function CajaLogin() {
   return (
     <div className={styles.page}>
       <form className={styles.card} onSubmit={handleSubmit}>
-        <img src="/src/assets/ALTORANCHO.png" alt="Alto Rancho" className={styles.logo} />
+        <img src={logo} alt="Alto Rancho" className={styles.logo} />
         <h1 className={styles.title}>Feria — Caja</h1>
         <input
           className={styles.input} type="email" placeholder="Email"

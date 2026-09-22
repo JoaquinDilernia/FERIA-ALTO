@@ -8,6 +8,15 @@
   color: var(--color-text-muted);
 }
 .tabBtnActive { color: var(--color-primary); font-weight: 600; border-bottom: 2px solid var(--color-primary); }
+.logoutBtn {
+  margin-left: auto;
+  padding: var(--space-3) var(--space-6);
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  text-decoration: underline;
+}
 .tabBody {
   display: grid;
   grid-template-columns: 300px 1fr;
@@ -32,6 +41,11 @@
   text-align: left;
 }
 .orderCardActive { border-color: var(--color-primary); background: var(--color-primary-subtle); }
+/* Después de .orderCardActive a propósito: un pedido que falló tiene que
+   leerse como fallado incluso cuando está seleccionado. */
+.orderCardError { border-color: var(--color-error); background: var(--color-error-bg); }
+.orderCardError.orderCardActive { box-shadow: inset 0 0 0 1px var(--color-error); }
+.errorTag { color: var(--color-error); font-size: var(--font-size-xs); font-weight: 600; }
 .detail { padding: var(--space-6); overflow-y: auto; }
 .meta { color: var(--color-text-muted); font-size: var(--font-size-sm); margin: var(--space-1) 0; }
 .table { width: 100%; margin: var(--space-4) 0; border-collapse: collapse; }

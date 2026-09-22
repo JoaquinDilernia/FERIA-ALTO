@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { apiFetch } from '../lib/api.js';
 import styles from './VendedorLogin.module.css';
+import logo from '../assets/ALTORANCHO.png';
 
 export default function VendedorLogin() {
   const [pin, setPin] = useState('');
@@ -29,7 +30,7 @@ export default function VendedorLogin() {
   return (
     <div className={styles.page}>
       <form className={styles.card} onSubmit={handleSubmit}>
-        <img src="/src/assets/ALTORANCHO.png" alt="Alto Rancho" className={styles.logo} />
+        <img src={logo} alt="Alto Rancho" className={styles.logo} />
         <h1 className={styles.title}>Feria — Vendedor</h1>
         <input
           className={styles.input}

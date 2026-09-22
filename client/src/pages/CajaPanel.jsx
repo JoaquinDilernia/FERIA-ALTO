@@ -5,16 +5,28 @@ import styles from './CajaPanel.module.css';
 const SEARCH_MIN_CHARS = 6;
 const REBAJA_LABELS = { 0: 'Normal', 1: 'Rebaja 1', 2: 'Rebaja 2' };
 
+function logout() {
+  localStorage.removeItem('feria_token');
+  localStorage.removeItem('feria_role');
+  window.location.reload();
+}
+
 function PedidosTab() {
   const [orders, setOrders] = useState([]);
   const [selected, setSelected] = useState(null);
   const [invoiceType, setInvoiceType] = useState('');
   const [confirming, setConfirming] = useState(false);
 
+  // Traemos pendientes Y errores: si un confirm falla, el backend deja el
+  // pedido en 'error' y, si sólo miráramos 'pendiente', la venta desaparecería
+  // de la lista y no habría forma de reintentarla desde la app.
   const loadOrders = useCallback(async () => {
     try {
-      const { orders } = await apiFetch('/api/feria/orders?status=pendiente');
-      setOrders(orders);
+      const [pendientes, errores] = await Promise.all([
+        apiFetch('/api/feria/orders?status=pendiente'),
+        apiFetch('/api/feria/orders?status=error'),
+      ]);
+      setOrders([...(errores.orders || []), ...(pendientes.orders || [])]);
     } catch {
       // Silencioso — reintenta en el próximo poll.
     }
@@ -44,6 +56,17 @@ function PedidosTab() {
       setSelected(null);
       loadOrders();
     } catch (err) {
+      // Releemos el pedido para quedarnos con el estado real ('error' + el
+      // detalle que guardó el backend). Sin esto `selected` seguía mostrando
+      // el snapshot viejo en 'pendiente' y el botón "Reintentar" nunca aparecía.
+      try {
+        const { order } = await apiFetch(`/api/feria/orders/${selected.id}`);
+        setSelected(order);
+      } catch {
+        // Si tampoco se puede releer, al menos marcamos el error en pantalla.
+        setSelected(prev => (prev ? { ...prev, status: 'error', errorDetail: err.message } : prev));
+      }
+      loadOrders();
       alert(`Error confirmando: ${err.message}`);
     } finally {
       setConfirming(false);
@@ -57,11 +80,16 @@ function PedidosTab() {
         {orders.map(order => (
           <button
             key={order.id}
-            className={`${styles.orderCard} ${selected?.id === order.id ? styles.orderCardActive : ''}`}
+            className={[
+              styles.orderCard,
+              order.status === 'error' ? styles.orderCardError : '',
+              selected?.id === order.id ? styles.orderCardActive : '',
+            ].filter(Boolean).join(' ')}
             onClick={() => openOrder(order)}
           >
             <strong>{order.customer.name}</strong>
             <span>{order.sellerName}</span>
+            {order.status === 'error' && <span className={styles.errorTag}>Falló — reintentar</span>}
           </button>
         ))}
         {orders.length === 0 && <p className={styles.empty}>No hay pedidos pendientes.</p>}
@@ -200,6 +228,7 @@ export default function CajaPanel() {
         <button className={`${styles.tabBtn} ${tab === 'rebajas' ? styles.tabBtnActive : ''}`} onClick={() => setTab('rebajas')}>
           Rebajas por SKU
         </button>
+        <button type="button" className={styles.logoutBtn} onClick={logout}>Salir</button>
       </nav>
       {tab === 'pedidos' ? <PedidosTab /> : <RebajasTab />}
     </div>
