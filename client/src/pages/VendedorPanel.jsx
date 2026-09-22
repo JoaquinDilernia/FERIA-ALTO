@@ -119,6 +119,9 @@ export default function VendedorPanel() {
         freshLines.push({
           sku: line.sku, modelo: line.modelo, condition: line.condition,
           qty: line.qty, unitPrice: finalUnitPrice(info.precioTabla, paymentMethod),
+          // Precio de tabla sin el descuento del medio de pago: a Odoo viaja
+          // este como precio unitario y el descuento va aparte.
+          listPrice: info.precioTabla,
         });
       }
 

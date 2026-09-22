@@ -14,7 +14,6 @@ function logout() {
 function PedidosTab() {
   const [orders, setOrders] = useState([]);
   const [selected, setSelected] = useState(null);
-  const [invoiceType, setInvoiceType] = useState('');
   const [confirming, setConfirming] = useState(false);
 
   // Traemos pendientes Y errores: si un confirm falla, el backend deja el
@@ -40,18 +39,14 @@ function PedidosTab() {
 
   function openOrder(order) {
     setSelected(order);
-    setInvoiceType(order.invoiceType || '');
   }
 
   async function handleConfirm() {
     if (!selected) return;
     setConfirming(true);
     try {
-      if (invoiceType) {
-        await apiFetch(`/api/feria/orders/${selected.id}/payment`, {
-          method: 'PATCH', body: JSON.stringify({ invoiceType }),
-        });
-      }
+      // La facturación automática quedó desactivada en el backend (el pedido
+      // igual se crea y se confirma en Odoo), así que vamos directo al confirm.
       await apiFetch(`/api/feria/orders/${selected.id}/confirm`, { method: 'POST' });
       setSelected(null);
       loadOrders();
@@ -118,15 +113,6 @@ function PedidosTab() {
               Total: ${selected.lines.reduce((s, l) => s + l.qty * l.unitPrice, 0).toFixed(0)}
             </p>
             <p className={styles.meta}>Método de pago cargado: {selected.paymentMethod}</p>
-
-            <div className={styles.field}>
-              <label className={styles.label}>Tipo de factura</label>
-              <select className={styles.select} value={invoiceType} onChange={(e) => setInvoiceType(e.target.value)}>
-                <option value="">Sin facturar todavía</option>
-                <option value="B">Factura B</option>
-                <option value="A">Factura A</option>
-              </select>
-            </div>
 
             {selected.status === 'error' && (
               <p className={styles.error}>Error del intento anterior: {selected.errorDetail}</p>
