@@ -205,7 +205,7 @@ export function computeFinalPrice(product, condition, rebajaLevel, paymentMethod
 - [ ] **Step 4: Run test to verify it passes**
 
 Run (from `backend/`): `npm test`
-Expected: PASS (105 tests — 95 previas + 10 nuevas)
+Expected: PASS (104 tests — 95 previas + 9 nuevas)
 
 - [ ] **Step 5: Write `backend/feriaProducts.mjs`**
 
@@ -405,7 +405,7 @@ Verificar a mano en la consola de Firestore que la colección
 - [ ] **Step 9: Run the full test suite to make sure nothing broke**
 
 Run (from `backend/`): `npm test`
-Expected: PASS (105 tests)
+Expected: PASS (104 tests)
 
 - [ ] **Step 10: Commit**
 
@@ -813,8 +813,8 @@ export async function markOrderError(id, errorDetail) {
 - [ ] **Step 5: Run test to verify it passes**
 
 Run (from `backend/`): `npm test`
-Expected: PASS (113 tests — 105 de Task 8 + 8 de este archivo, mismo total
-que antes menos las 5 viejas más las 8 nuevas)
+Expected: PASS (107 tests — 104 de Task 8 menos las 5 pruebas viejas de
+`feriaOrders.test.mjs` que este archivo reemplaza, más las 8 nuevas)
 
 - [ ] **Step 6: Add the customer lookup route and rewrite `/orders/:id/confirm` in `backend/feriaRoutes.mjs`**
 
@@ -919,7 +919,7 @@ ODOO_FERIA_PRICELIST_NAME=Feria Octubre 2026
 - [ ] **Step 8: Run the full test suite and start the server to make sure it boots**
 
 Run (from `backend/`): `npm test`
-Expected: PASS (113 tests)
+Expected: PASS (107 tests)
 
 Run (from `backend/`): `npm run dev`
 Expected: arranca sin error (antes de esta task fallaba al arrancar por los
