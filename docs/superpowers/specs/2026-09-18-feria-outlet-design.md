@@ -124,8 +124,6 @@ usa BOT-ALTORANCHO para reintentar mensajes de WhatsApp/Instagram fallidos
 
 ## Pendiente de definir (no bloquea empezar a construir)
 
-- **Nombre final de la feria** / del Sales Team en Odoo (hoy: "Feria Octubre
-  2026", tentativo).
 - **Mecanismo exacto de facturación automática**: hoy Odoo ya factura solo
   los pedidos de Tienda Nube, pero no está claro si es una Automated
   Action/cron, o si se dispara al confirmar el pedido. Hay que revisarlo
@@ -133,5 +131,52 @@ usa BOT-ALTORANCHO para reintentar mensajes de WhatsApp/Instagram fallidos
   — se puede construir el resto del flujo mientras tanto y dejar esta parte
   para el final.
 - **Lista de vendedores** (nombres/PINs) — se carga cuando esté definida.
-- **Las 4 pricelists reales de la feria** — se crean en Odoo más adelante;
-  mientras tanto se usan pricelists existentes para probar el flujo.
+
+## Actualización 2026-09-22 — cliente, equipo de ventas y precios
+
+Cambios de alcance confirmados con el usuario, con plan detallado en
+`docs/superpowers/plans/2026-09-22-feria-outlet-pricing-plan.md` (Tasks 8-15,
+continúa la numeración del plan original cuyas Tasks 1-3 ya están hechas).
+
+- **Equipo de ventas confirmado**: "Feria Octubre 2026" ya existe en Odoo —
+  deja de ser tentativo. También existe una pricelist vacía con ese mismo
+  nombre en Odoo (se usa solo como `pricelist_id` del `sale.order` para que
+  los reportes clasifiquen bien la venta — el cálculo real del precio no lo
+  hace el motor de pricelists de Odoo, ver más abajo).
+- **Alta/búsqueda de cliente**: al cargar el cliente en el panel Vendedor, se
+  busca por DNI/CUIT en Odoo (lectura, sin crear) y se autocompletan los
+  datos si existen. Si no existe, alcanza con cargar DNI + nombre completo
+  para poder seguir — se crea recién al confirmar la venta (ya es lo que
+  hace `findOrCreatePartner`). El DNI/CUIT pasa a ser **obligatorio** (antes
+  era opcional).
+- **Precios — reemplaza por completo el paso "elegir lista de precio" del
+  flujo Vendedor (punto 3 más arriba)**: la fuente de precios es un Excel
+  del negocio (`Precios Feria_4.xlsx`, hoja "Precios Feria", ~3067 SKUs, se
+  importa a Firestore, colección `feria_products`). Cada SKU tiene dos
+  condiciones de venta posibles — **Falla** y **Discontinuo** — cada una con
+  su precio normal y dos niveles de rebaja (Rebaja 1 / Rebaja 2). El
+  vendedor elige la condición al cargar el producto en el pedido; el
+  admin/caja puede activar, por SKU y de forma independiente para cada
+  condición, cuál rebaja está vigente (normal / rebaja 1 / rebaja 2),
+  pudiendo cambiarlo en caliente durante el evento.
+- **Medio de pago, ahora obligatorio en el panel Vendedor** (antes era solo
+  referencia), con 3 opciones fijas y su descuento sobre el precio de tabla:
+  transferencia 20%, efectivo 15%, 3 cuotas 0% (precio de lista, sin
+  descuento ni recargo).
+- **Buscador de productos**: por SKU o modelo, tanto en el panel Vendedor
+  como en el nuevo panel público (ver abajo). No debe listar resultados
+  hasta que se escriban ~6 caracteres, para no tirar un dropdown con miles
+  de filas.
+- **Nuevo panel público, sin login, en `/feria`** de la app de `feria-alto`:
+  buscador de precio por SKU/modelo para que lo use el cliente mismo. Muestra
+  el precio final para las 3 opciones de medio de pago, para cada condición
+  que el SKU tenga disponible (Falla/Discontinuo) — nunca stock, costo ni
+  margen (esos campos son internos del negocio, viven en el Excel/Firestore
+  pero no se exponen en ninguna respuesta pública).
+- **Simplificación de alcance** (decisión tomada al planificar, no pedida
+  explícitamente pero necesaria por tiempo): se elimina el descuento manual
+  extra por línea que tenía el diseño original (punto 4 del flujo Vendedor)
+  — con condición + rebaja + medio de pago ya hay tres capas de descuento
+  encimadas; una cuarta manual aumenta el riesgo de error de cobro en un
+  evento en vivo sin aportar algo pedido. Fácil de reintroducir después del
+  evento si hace falta.
