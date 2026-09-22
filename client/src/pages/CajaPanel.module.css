@@ -1,0 +1,75 @@
+.page { display: flex; flex-direction: column; height: 100vh; }
+.tabs { display: flex; border-bottom: 1px solid var(--color-border); }
+.tabBtn {
+  padding: var(--space-3) var(--space-6);
+  border: none;
+  background: none;
+  font-size: var(--font-size-md);
+  color: var(--color-text-muted);
+}
+.tabBtnActive { color: var(--color-primary); font-weight: 600; border-bottom: 2px solid var(--color-primary); }
+.tabBody {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  flex: 1;
+  overflow: hidden;
+}
+.list {
+  border-right: 1px solid var(--color-border);
+  overflow-y: auto;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.listTitle { font-size: var(--font-size-md); font-weight: 600; margin-bottom: var(--space-2); }
+.orderCard {
+  display: flex; flex-direction: column; align-items: flex-start;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  text-align: left;
+}
+.orderCardActive { border-color: var(--color-primary); background: var(--color-primary-subtle); }
+.detail { padding: var(--space-6); overflow-y: auto; }
+.meta { color: var(--color-text-muted); font-size: var(--font-size-sm); margin: var(--space-1) 0; }
+.table { width: 100%; margin: var(--space-4) 0; border-collapse: collapse; }
+.table td { padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border); font-size: var(--font-size-sm); }
+.total { font-size: var(--font-size-xl); font-weight: 600; text-align: right; }
+.field { display: flex; flex-direction: column; gap: var(--space-1); margin: var(--space-4) 0; }
+.label { font-size: var(--font-size-xs); font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; }
+.select, .input { padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.confirmBtn {
+  width: 100%;
+  padding: var(--space-4);
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: var(--color-text-on-primary);
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+}
+.confirmBtn:disabled { opacity: 0.5; }
+.empty { color: var(--color-text-faint); text-align: center; margin-top: var(--space-8); }
+.error { color: var(--color-error); font-size: var(--font-size-sm); }
+.rebajasBody { padding: var(--space-6); max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--space-4); overflow-y: auto; }
+.rebajaCard {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.rebajaRow { display: flex; justify-content: space-between; align-items: center; }
+.rebajaLabel { font-size: var(--font-size-sm); text-transform: capitalize; }
+.rebajaButtons { display: flex; gap: var(--space-2); }
+.rebajaBtn {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-size: var(--font-size-xs);
+}
+.rebajaBtnActive { border-color: var(--color-primary); background: var(--color-primary-subtle); color: var(--color-primary); font-weight: 600; }
