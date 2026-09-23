@@ -98,8 +98,10 @@ export default function EntregasView({ initialFilter }) {
           ? `${pending.modelo} pasa a envío a domicilio. Ojo: en Odoo agregá el cargo de envío y la dirección a mano.`
           : 'Dirección de envío guardada. Si el pedido ya está en Odoo, corregila también allá.',
       });
-      await load();
     } finally {
+      // Refresca siempre: la dirección puede haber quedado guardada aunque
+      // falle el cambio de la línea.
+      await load();
       setBusy('');
     }
   }

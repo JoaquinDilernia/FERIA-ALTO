@@ -39,7 +39,14 @@ function PedidosTab() {
         apiFetch('/api/feria/orders?status=pendiente'),
         apiFetch('/api/feria/orders?status=error'),
       ]);
-      setOrders([...(errores.orders || []), ...(pendientes.orders || [])]);
+      const all = [...(errores.orders || []), ...(pendientes.orders || [])];
+      setOrders(all);
+      // Si otro dispositivo cambió el pedido abierto (agregó un producto, cambió
+      // una cantidad), se refresca: el total a cobrar tiene que ser el real.
+      setSelected(prev => {
+        const fresh = prev && all.find(o => o.id === prev.id);
+        return fresh && JSON.stringify(fresh.updatedAt) !== JSON.stringify(prev.updatedAt) ? fresh : prev;
+      });
       setOffline(false);
     } catch {
       // Reintenta en el próximo poll; mientras tanto se avisa en pantalla.
@@ -130,6 +137,8 @@ function PedidosTab() {
       let { order } = await apiFetch(`/api/feria/orders/${selected.id}/shipping`, {
         method: 'PATCH', body: JSON.stringify(shipping),
       });
+      // La dirección ya quedó guardada aunque falle el cambio de la línea.
+      setSelected(order);
       const pending = shippingEdit?.line;
       if (pending) {
         ({ order } = await apiFetch(`/api/feria/orders/${selected.id}/lines/${pending.lineId}`, {

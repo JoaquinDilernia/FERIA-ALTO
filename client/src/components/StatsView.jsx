@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiFetch } from '../lib/api.js';
 import { formatMoney, CONDITION_LABELS, DELIVERY_LABELS } from '../lib/feriaLabels.js';
 import { PaymentChip, Notice, EmptyState } from './ui.jsx';
@@ -91,10 +91,14 @@ export default function StatsView() {
   const [range, setRange] = useState('hoy');
   const [stats, setStats] = useState(null);
   const [error, setError] = useState('');
+  const currentRange = useRef(range);
+  currentRange.current = range;
 
   const load = useCallback(async () => {
     try {
       const { stats } = await apiFetch(`/api/feria/stats?range=${range}`);
+      // Si mientras tanto se eligió otro período, esta respuesta ya no va.
+      if (currentRange.current !== range) return;
       setStats(stats);
       setError('');
     } catch (err) {
