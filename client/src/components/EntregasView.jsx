@@ -7,6 +7,10 @@ import styles from './EntregasView.module.css';
 const FILTERS = [
   // Lo que el cliente viene a buscar a la feria (ya enviado o todavía no).
   { value: 'retiros_feria', label: 'Retiros en feria', match: l => l.delivery === 'retira_feria' },
+  // Lo que se lleva ahora y quedó pendiente (falló la entrega automática al
+  // confirmar, o caja lo cambió a 'Se lleva ahora' después): sin esta pestaña
+  // esas líneas no aparecerían en ningún lado y su reserva quedaría trabada.
+  { value: 'ahora', label: 'Se lleva ahora', match: l => l.delivery === 'ahora' },
   // Lo que Logística todavía tiene que mandar de Rolón a la feria.
   { value: 'mandar_feria', label: 'Mandar a feria', match: l => l.delivery === 'retira_feria' && l.status === 'pendiente' },
   { value: 'retiro_rolon', label: 'Retiro en Rolón', match: l => l.delivery === 'retira_rolon' },
@@ -98,7 +102,7 @@ export default function EntregasView({ initialFilter }) {
           {order.errorDetail && <p className={styles.error}>{order.errorDetail}</p>}
           <OrderLines
             lines={lines}
-            busyLineId={busy.startsWith(`${order.id}:`) ? busy.slice(order.id.length + 1) : null}
+            disabled={busy.startsWith(`${order.id}:`)}
             onSendToFeria={(l) => run(order, l, '/sent-to-feria', { method: 'POST' })}
             onDeliver={(l) => run(order, l, '/deliver', { method: 'POST' })}
             onEdit={(l, changes) => editLine(order, l, changes)}

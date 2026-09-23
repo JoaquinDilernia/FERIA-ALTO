@@ -19,7 +19,10 @@ function StatusBadge({ line }) {
 // Tabla de líneas de un pedido con su estado. Los controles aparecen solo si
 // el que la usa pasa el callback: así Caja y Logística comparten la misma
 // vista y cada una habilita lo que corresponde.
-export default function OrderLines({ lines, stockBySku = {}, busyLineId = null, onEdit, onRemove, onSendToFeria, onDeliver }) {
+// `disabled` apaga los controles de TODAS las líneas mientras hay una acción
+// en curso sobre el pedido: dos acciones simultáneas sobre el mismo pedido
+// (dos "Hecho", o eliminar mientras se confirma) se pisan en Odoo.
+export default function OrderLines({ lines, stockBySku = {}, disabled = false, onEdit, onRemove, onSendToFeria, onDeliver }) {
   function changeLocation(line, location) {
     // "Se lleva ahora" solo sale de Exhibición: si pasa a Rolón, cambia la
     // entrega a retiro en Rolón en el mismo paso.
@@ -34,7 +37,7 @@ export default function OrderLines({ lines, stockBySku = {}, busyLineId = null, 
       <tbody>
         {lines.map((l, i) => {
           const reserving = RESERVING_STATUSES.includes(l.status);
-          const busy = busyLineId != null && busyLineId === l.lineId;
+          const busy = disabled;
           const stock = stockBySku[l.sku];
           return (
             <tr key={l.lineId || i} className={l.status === 'eliminado' ? styles.removed : ''}>

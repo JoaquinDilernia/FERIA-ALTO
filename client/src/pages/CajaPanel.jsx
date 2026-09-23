@@ -159,7 +159,7 @@ function PedidosTab() {
             <OrderLines
               lines={selected.lines}
               stockBySku={stockBySku}
-              busyLineId={busy}
+              disabled={!!busy}
               onEdit={editable ? editLine : undefined}
               onRemove={editable ? removeLine : undefined}
             />
