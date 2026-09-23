@@ -1,3 +1,4 @@
+import { saveSession } from '../lib/session.js';
 import { useState } from 'react';
 import { apiFetch } from '../lib/api.js';
 import { LoginShell, Notice, uiStyles } from '../components/ui.jsx';
@@ -15,9 +16,7 @@ export default function VendedorLogin() {
       const { token, seller } = await apiFetch('/api/feria/auth/vendedor', {
         method: 'POST', body: JSON.stringify({ pin }),
       });
-      localStorage.setItem('feria_token', token);
-      localStorage.setItem('feria_role', 'vendedor');
-      localStorage.setItem('feria_seller', JSON.stringify(seller));
+      saveSession('vendedor', token, seller);
       window.location.reload();
     } catch (err) {
       setError(err.message);

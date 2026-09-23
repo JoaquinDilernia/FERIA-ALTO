@@ -1,11 +1,11 @@
+import { clearSession } from '../lib/session.js';
 import logoAlto from '../assets/logo-alto.png';
 import logoAltorancho from '../assets/logo-altorancho.png';
 import { LINE_STATUS, ORDER_STATUS, paymentMethodInfo } from '../lib/feriaLabels.js';
 import styles from './ui.module.css';
 
 export function logout() {
-  localStorage.removeItem('feria_token');
-  localStorage.removeItem('feria_role');
+  clearSession();
   window.location.reload();
 }
 

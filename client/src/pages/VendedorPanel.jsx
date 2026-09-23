@@ -1,3 +1,4 @@
+import { getSession } from '../lib/session.js';
 import { useState, useRef } from 'react';
 import { apiFetch } from '../lib/api.js';
 import {
@@ -40,7 +41,7 @@ function stockProblemsByLine(lines) {
 }
 
 export default function VendedorPanel() {
-  const seller = JSON.parse(localStorage.getItem('feria_seller') || '{}');
+  const seller = getSession('vendedor')?.profile ?? {};
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);

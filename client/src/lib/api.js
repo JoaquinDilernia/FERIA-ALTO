@@ -1,7 +1,10 @@
+import { getSession, clearSession } from './session.js';
+
 export const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 export async function apiFetch(path, options = {}) {
-  const token = localStorage.getItem('feria_token');
+  // Cada pantalla manda el token de su propio panel (ver session.js).
+  const token = getSession()?.token;
   const headers = { 'Content-Type': 'application/json', ...options.headers };
   if (token) headers.Authorization = `Bearer ${token}`;
 
@@ -14,8 +17,7 @@ export async function apiFetch(path, options = {}) {
   // contraseña están mal — ahí NO hay que recargar, porque se perdería el
   // mensaje de error en pantalla. Por eso exigimos que hubiera un token.
   if (res.status === 401 && token && !path.startsWith('/api/feria/auth/')) {
-    localStorage.removeItem('feria_token');
-    localStorage.removeItem('feria_role');
+    clearSession();
     window.location.reload();
   }
 

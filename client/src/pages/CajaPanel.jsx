@@ -1,3 +1,4 @@
+import { getSession } from '../lib/session.js';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiFetch } from '../lib/api.js';
 import OrderLines from '../components/OrderLines.jsx';
@@ -383,7 +384,7 @@ const TABS = [
 ];
 
 export default function CajaPanel() {
-  const user = JSON.parse(localStorage.getItem('feria_user') || '{}');
+  const user = getSession('caja')?.profile ?? {};
   const [tab, setTab] = useState('pedidos');
 
   return (

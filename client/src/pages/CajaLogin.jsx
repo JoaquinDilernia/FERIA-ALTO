@@ -1,3 +1,4 @@
+import { saveSession } from '../lib/session.js';
 import { useState } from 'react';
 import { apiFetch } from '../lib/api.js';
 import { LoginShell, Notice } from '../components/ui.jsx';
@@ -18,9 +19,7 @@ export default function CajaLogin({ panel = 'caja' }) {
       const { token, user } = await apiFetch('/api/feria/auth/caja', {
         method: 'POST', body: JSON.stringify({ email, password }),
       });
-      localStorage.setItem('feria_token', token);
-      localStorage.setItem('feria_role', 'caja');
-      localStorage.setItem('feria_user', JSON.stringify(user));
+      saveSession('caja', token, user);
       window.location.reload();
     } catch (err) {
       setError(err.message);

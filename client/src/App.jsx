@@ -1,3 +1,4 @@
+import { getSession } from './lib/session.js';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import VendedorLogin from './pages/VendedorLogin.jsx';
 import VendedorPanel from './pages/VendedorPanel.jsx';
@@ -7,7 +8,7 @@ import FeriaPublico from './pages/FeriaPublico.jsx';
 import LogisticaPanel from './pages/LogisticaPanel.jsx';
 
 function hasSession(role) {
-  return localStorage.getItem('feria_token') && localStorage.getItem('feria_role') === role;
+  return Boolean(getSession(role)?.token);
 }
 
 export default function App() {
