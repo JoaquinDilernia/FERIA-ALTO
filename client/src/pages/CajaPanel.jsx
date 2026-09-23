@@ -12,7 +12,7 @@ import {
   AppHeader, PaymentChip, OrderStatusChip, OrderNumbers, Notice, EmptyState,
 } from '../components/ui.jsx';
 import {
-  orderBreakdown, formatMoney, formatTime, formatDateTime, paymentMethodInfo, CONDITION_LABELS,
+  orderBreakdown, formatMoney, formatTime, formatDateTime, paymentMethodInfo, CONDITION_LABELS, PAYMENT_METHODS,
 } from '../lib/feriaLabels.js';
 import styles from './CajaPanel.module.css';
 
@@ -167,6 +167,16 @@ function PedidosTab() {
     }
   }
 
+  // El cliente decide pagar con otro medio: el servidor recalcula los precios
+  // con el descuento nuevo (solo antes de confirmar).
+  function changePayment(value) {
+    if (value === selected.paymentMethod) return;
+    const next = paymentMethodInfo(value);
+    runAction('payment', () => apiFetch(`/api/feria/orders/${selected.id}/payment`, {
+      method: 'PATCH', body: JSON.stringify({ paymentMethod: value }),
+    }), `Medio de pago cambiado a ${next.label}. Revisá el nuevo total a cobrar.`);
+  }
+
   function handleCancel() {
     if (!window.confirm(`¿Cancelar el pedido de ${selected.customer.name}? Se libera todo el stock reservado.`)) return;
     runAction('cancel', () => apiFetch(`/api/feria/orders/${selected.id}/cancel`, { method: 'POST' }), 'Pedido cancelado.');
@@ -209,6 +219,15 @@ function PedidosTab() {
   const editable = selected && ['pendiente', 'error'].includes(selected.status);
   const breakdown = selected ? orderBreakdown(selected) : null;
   const method = selected ? paymentMethodInfo(selected.paymentMethod) : null;
+  const paymentEditable = editable && !selected.odooOrderId;
+  // Total que quedaría con cada medio de pago (mismo cálculo que el servidor:
+  // precio de lista con el descuento del medio, más el envío).
+  const totalWith = (m) => selected.lines
+    .filter(l => l.status !== 'eliminado')
+    .reduce((sum, l) => {
+      const list = l.listPrice ?? Math.round(l.unitPrice / (1 - method.discountPct / 100));
+      return sum + l.qty * Math.round(list * (1 - m.discountPct / 100));
+    }, 0) + breakdown.shipping;
 
   return (
     <div className={styles.pedidos}>
@@ -326,6 +345,30 @@ function PedidosTab() {
             )}
 
             <section className={styles.checkout}>
+              {paymentEditable && (
+                <div className={styles.payPicker}>
+                  <p className={styles.payPickerLabel}>Medio de pago</p>
+                  <div className={styles.payGrid} role="radiogroup" aria-label="Medio de pago">
+                    {PAYMENT_METHODS.map(m => {
+                      const active = m.value === selected.paymentMethod;
+                      return (
+                        <button
+                          key={m.value}
+                          type="button"
+                          role="radio"
+                          aria-checked={active}
+                          disabled={!!busy}
+                          className={`${styles.payOpt} ${active ? styles.payOptActive : ''}`}
+                          onClick={() => changePayment(m.value)}
+                        >
+                          <span className={styles.payOptName}>{m.label}{m.discountPct ? ` −${m.discountPct}%` : ''}</span>
+                          <span className="num">{formatMoney(totalWith(m))}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <dl className={styles.breakdown}>
                 <div><dt>Precio de lista</dt><dd className="num">{formatMoney(breakdown.list)}</dd></div>
                 {breakdown.discount > 0 && (

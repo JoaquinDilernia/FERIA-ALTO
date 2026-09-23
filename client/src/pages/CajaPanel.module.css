@@ -98,6 +98,30 @@
 .actions { display: flex; gap: var(--s-3); justify-content: flex-end; margin-top: var(--s-2); }
 .confirmBtn { min-width: 260px; }
 
+/* ---- Medio de pago (editable antes de confirmar) ---- */
+.payPicker { display: flex; flex-direction: column; gap: var(--s-2); }
+.payPickerLabel { font-size: var(--fs-sm); color: var(--ink-2); }
+.payGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--s-2); }
+.payOpt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.payOpt .num { font-weight: 600; font-size: var(--fs-md); }
+.payOpt:hover:not(:disabled) { border-color: var(--ink); }
+.payOpt:disabled { opacity: 0.6; cursor: wait; }
+.payOptActive, .payOptActive:hover:not(:disabled) { background: var(--ink); border-color: var(--ink); color: var(--paper); cursor: default; }
+.payOptName { font-size: var(--fs-xs); }
+
 /* ---- Rebajas ---- */
 .rebajas {
   display: flex;
