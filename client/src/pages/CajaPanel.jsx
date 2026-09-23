@@ -4,6 +4,8 @@ import { apiFetch } from '../lib/api.js';
 import OrderLines from '../components/OrderLines.jsx';
 import EntregasView from '../components/EntregasView.jsx';
 import ShippingForm from '../components/ShippingForm.jsx';
+import AddProductSearch from '../components/AddProductSearch.jsx';
+import HistoryView from '../components/HistoryView.jsx';
 import {
   AppHeader, PaymentChip, OrderStatusChip, OrderNumbers, Notice, EmptyState,
 } from '../components/ui.jsx';
@@ -25,6 +27,7 @@ function PedidosTab() {
   // para pasar esa línea a envío a domicilio.
   const [shippingEdit, setShippingEdit] = useState(null);
   const [offline, setOffline] = useState(false);
+  const [adding, setAdding] = useState(false);
 
   // Traemos pendientes Y errores: si un confirm falla, el backend deja el
   // pedido en 'error' y, si sólo miráramos 'pendiente', la venta desaparecería
@@ -69,6 +72,7 @@ function PedidosTab() {
     setNotice({ kind: '', text: '' });
     setStockBySku({});
     setShippingEdit(null);
+    setAdding(false);
     loadStock(order);
   }
 
@@ -86,6 +90,19 @@ function PedidosTab() {
     } finally {
       setBusy('');
     }
+  }
+
+  function changeQty(line, qty) {
+    runAction(line.lineId, () => apiFetch(`/api/feria/orders/${selected.id}/lines/${line.lineId}`, {
+      method: 'PATCH', body: JSON.stringify({ qty }),
+    }));
+  }
+
+  function addProduct({ modelo, ...input }) {
+    runAction('add', () => apiFetch(`/api/feria/orders/${selected.id}/lines`, {
+      method: 'POST', body: JSON.stringify(input),
+    }), `${modelo} agregado al pedido. Revisá de dónde sale y cómo se entrega.`);
+    setAdding(false);
   }
 
   function removeLine(line) {
@@ -234,9 +251,18 @@ function PedidosTab() {
                 stockBySku={stockBySku}
                 disabled={!!busy}
                 onEdit={editable ? editLine : undefined}
+                onQtyChange={editable && !selected.odooOrderId ? changeQty : undefined}
                 onRemove={editable ? removeLine : undefined}
               />
             </section>
+
+            {editable && !selected.odooOrderId && (adding ? (
+              <AddProductSearch disabled={!!busy} onAdd={addProduct} onClose={() => setAdding(false)} />
+            ) : (
+              <button type="button" className={`btn btn-secondary ${styles.addBtn}`} onClick={() => setAdding(true)} disabled={!!busy}>
+                + Agregar producto
+              </button>
+            ))}
 
             {shippingEdit ? (
               <ShippingForm
@@ -384,6 +410,7 @@ function RebajasTab() {
 const TABS = [
   { value: 'pedidos', label: 'Pedidos' },
   { value: 'entregas', label: 'Entregas' },
+  { value: 'historial', label: 'Historial' },
   { value: 'rebajas', label: 'Rebajas' },
 ];
 
@@ -398,6 +425,7 @@ export default function CajaPanel() {
       {/* Caja arranca en "Retiros en feria" (lo que el cliente viene a buscar),
           pero puede ver y marcar todo, igual que Logística. */}
       {tab === 'entregas' && <EntregasView initialFilter="retiros_feria" />}
+      {tab === 'historial' && <HistoryView />}
       {tab === 'rebajas' && <RebajasTab />}
     </div>
   );

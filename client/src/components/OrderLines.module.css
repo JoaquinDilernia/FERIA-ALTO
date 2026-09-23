@@ -46,3 +46,16 @@
   .actions { justify-content: stretch; }
   .actions .btn { flex: 1; }
 }
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  margin-top: var(--s-2);
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+.stepper button { width: 32px; height: 32px; border: none; background: var(--paper); font-size: var(--fs-md); }
+.stepper button:not(:disabled):hover { background: var(--wash); }
+.stepper button:disabled { opacity: 0.35; }
+.stepper span { min-width: 28px; text-align: center; font-weight: 600; font-size: var(--fs-sm); }

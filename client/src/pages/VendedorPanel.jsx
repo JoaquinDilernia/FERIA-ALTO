@@ -3,6 +3,7 @@ import { useState, useRef } from 'react';
 import { apiFetch } from '../lib/api.js';
 import {
   LOCATION_LABELS, DELIVERY_LABELS, SHIPPING_COST, PAYMENT_METHODS, CONDITION_LABELS, formatMoney,
+  deliveryAllowed, defaultDeliveryFor,
 } from '../lib/feriaLabels.js';
 import { AppHeader, Chip, Notice, EmptyState } from '../components/ui.jsx';
 import styles from './VendedorPanel.module.css';
@@ -113,8 +114,9 @@ export default function VendedorPanel() {
     setLines(prev => prev.map((l, i) => {
       if (i !== index) return l;
       const next = { ...l, ...changes };
-      // "Se lleva ahora" solo sale de Exhibición.
-      if (next.delivery === 'ahora' && next.location !== 'exhibicion') next.delivery = 'retira_rolon';
+      // Si la entrega no corresponde a la ubicación nueva (se lleva ahora solo
+      // de Exhibición, retira en Rolón solo de Rolón), pasa a la habitual.
+      if (!deliveryAllowed(next.delivery, next.location)) next.delivery = defaultDeliveryFor(next.location);
       return next;
     }));
   }
@@ -315,7 +317,7 @@ export default function VendedorPanel() {
                         aria-label="Entrega"
                       >
                         {Object.entries(DELIVERY_LABELS).map(([value, label]) => (
-                          <option key={value} value={value} disabled={value === 'ahora' && line.location !== 'exhibicion'}>{label}</option>
+                          <option key={value} value={value} disabled={!deliveryAllowed(value, line.location)}>{label}</option>
                         ))}
                       </select>
                     </div>

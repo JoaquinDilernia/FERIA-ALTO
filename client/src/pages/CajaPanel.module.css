@@ -154,3 +154,4 @@
 }
 .shipping { display: flex; justify-content: space-between; align-items: center; gap: var(--s-4); }
 .shippingText { min-width: 0; }
+.addBtn { align-self: flex-start; }

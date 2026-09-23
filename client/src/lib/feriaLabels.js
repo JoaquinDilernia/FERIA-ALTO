@@ -76,3 +76,16 @@ export function orderBreakdown(order) {
 export function orderTotal(order) {
   return orderBreakdown(order).total;
 }
+
+// Misma regla que validateLineDelivery del backend: "Se lleva ahora" sale de
+// Exhibición y "Retira en Rolón" sale de Rolón; retira en feria y envío,
+// de cualquiera de las dos.
+export function deliveryAllowed(delivery, location) {
+  if (delivery === 'ahora') return location === 'exhibicion';
+  if (delivery === 'retira_rolon') return location === 'rolon';
+  return true;
+}
+
+export function defaultDeliveryFor(location) {
+  return location === 'exhibicion' ? 'ahora' : 'retira_rolon';
+}

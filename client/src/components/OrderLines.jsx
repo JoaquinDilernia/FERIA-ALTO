@@ -1,5 +1,6 @@
 import {
   LOCATION_LABELS, DELIVERY_LABELS, RESERVING_STATUSES, CONDITION_LABELS, formatDateTime, formatMoney,
+  deliveryAllowed, defaultDeliveryFor,
 } from '../lib/feriaLabels.js';
 import { LineStatusChip } from './ui.jsx';
 import styles from './OrderLines.module.css';
@@ -17,13 +18,14 @@ function statusDetail(line) {
 // `disabled` apaga los controles de TODAS las líneas mientras hay una acción
 // en curso sobre el pedido: dos acciones simultáneas sobre el mismo pedido
 // (dos "Hecho", o eliminar mientras se confirma) se pisan en Odoo.
-export default function OrderLines({ lines, stockBySku = {}, disabled = false, onEdit, onRemove, onSendToFeria, onDeliver }) {
+// `onQtyChange` (solo antes de confirmar) muestra el control de cantidad.
+export default function OrderLines({ lines, stockBySku = {}, disabled = false, onEdit, onQtyChange, onRemove, onSendToFeria, onDeliver }) {
   function changeLocation(line, location) {
-    // "Se lleva ahora" solo sale de Exhibición: si pasa a Rolón, cambia la
-    // entrega a retiro en Rolón en el mismo paso.
-    const changes = location === 'rolon' && line.delivery === 'ahora'
-      ? { location, delivery: 'retira_rolon' }
-      : { location };
+    // Si la entrega no corresponde a la ubicación nueva (se lleva ahora solo
+    // de Exhibición, retira en Rolón solo de Rolón), cambia en el mismo paso.
+    const changes = deliveryAllowed(line.delivery, location)
+      ? { location }
+      : { location, delivery: defaultDeliveryFor(location) };
     onEdit(line, changes);
   }
 
@@ -38,8 +40,16 @@ export default function OrderLines({ lines, stockBySku = {}, disabled = false, o
             <div className={styles.product}>
               <p className={styles.name}>{l.modelo}</p>
               <p className={styles.meta}>
-                {l.sku} · {CONDITION_LABELS[l.condition] ?? l.condition} · {l.qty} {l.qty === 1 ? 'unidad' : 'unidades'}
+                {l.sku} · {CONDITION_LABELS[l.condition] ?? l.condition}
+                {!(onQtyChange && reserving) && ` · ${l.qty} ${l.qty === 1 ? 'unidad' : 'unidades'}`}
               </p>
+              {onQtyChange && reserving && (
+                <div className={styles.stepper} role="group" aria-label={`Cantidad de ${l.modelo}`}>
+                  <button type="button" disabled={disabled || l.qty <= 1} onClick={() => onQtyChange(l, l.qty - 1)} aria-label="Una menos">−</button>
+                  <span className="num">{l.qty}</span>
+                  <button type="button" disabled={disabled} onClick={() => onQtyChange(l, l.qty + 1)} aria-label="Una más">+</button>
+                </div>
+              )}
             </div>
 
             <div className={styles.where}>
@@ -52,7 +62,7 @@ export default function OrderLines({ lines, stockBySku = {}, disabled = false, o
                   <select className="select select-sm" value={l.delivery} disabled={disabled}
                     onChange={(e) => onEdit(l, { delivery: e.target.value })} aria-label="Entrega">
                     {Object.entries(DELIVERY_LABELS).map(([value, label]) => (
-                      <option key={value} value={value} disabled={value === 'ahora' && l.location !== 'exhibicion'}>{label}</option>
+                      <option key={value} value={value} disabled={!deliveryAllowed(value, l.location)}>{label}</option>
                     ))}
                   </select>
                 </div>
