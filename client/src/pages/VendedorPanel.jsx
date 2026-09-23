@@ -7,6 +7,7 @@ import { AppHeader, Chip, Notice, EmptyState } from '../components/ui.jsx';
 import styles from './VendedorPanel.module.css';
 
 const SEARCH_MIN_CHARS = 6;
+const EMPTY_CUSTOMER = { name: '', docNumber: '', phone: '' };
 const EMPTY_SHIPPING = { street: '', number: '', floor: '', city: '', zip: '', phone: '', notes: '' };
 const REQUIRED_SHIPPING = ['street', 'number', 'city', 'zip', 'phone'];
 
@@ -44,7 +45,7 @@ export default function VendedorPanel() {
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [lines, setLines] = useState([]);
-  const [customer, setCustomer] = useState({ name: '', docNumber: '' });
+  const [customer, setCustomer] = useState(EMPTY_CUSTOMER);
   const [lookup, setLookup] = useState({ kind: '', text: '' });
   const [paymentMethod, setPaymentMethod] = useState('');
   const [shipping, setShipping] = useState(EMPTY_SHIPPING);
@@ -84,7 +85,7 @@ export default function VendedorPanel() {
       try {
         const { found, partner } = await apiFetch(`/api/feria/customers/lookup?docNumber=${encodeURIComponent(value)}`);
         if (found) {
-          setCustomer({ name: partner.name, docNumber: partner.vat || value });
+          setCustomer(prev => ({ name: partner.name, docNumber: partner.vat || value, phone: partner.phone || prev.phone }));
           setLookup({ kind: 'success', text: 'Cliente encontrado en Odoo.' });
         } else {
           setLookup({ kind: 'info', text: 'Cliente nuevo: se crea en Odoo al confirmar la venta.' });
@@ -130,11 +131,15 @@ export default function VendedorPanel() {
     : null;
   const problems = stockProblemsByLine(lines);
   const hasProblems = Object.keys(problems).length > 0;
-  const shippingOk = !needsShipping || REQUIRED_SHIPPING.every(f => shipping[f].trim());
+  // El teléfono de envío arranca con el del cliente; se cambia solo si es otro.
+  const effectiveShipping = { ...shipping, phone: shipping.phone || customer.phone };
+  const phoneDigits = customer.phone.replace(/\D/g, '').length;
+  const shippingOk = !needsShipping || REQUIRED_SHIPPING.every(f => effectiveShipping[f].trim());
 
   const missing = [];
   if (!lines.length) missing.push('productos');
   if (!customer.docNumber.trim() || !customer.name.trim()) missing.push('cliente');
+  if (phoneDigits < 8) missing.push('teléfono del cliente');
   if (!paymentMethod) missing.push('medio de pago');
   if (!shippingOk) missing.push('datos de envío');
   const canSubmit = missing.length === 0 && !hasProblems && !sending;
@@ -175,13 +180,13 @@ export default function VendedorPanel() {
 
       await apiFetch('/api/feria/orders', {
         method: 'POST',
-        body: JSON.stringify({ customer, paymentMethod, lines: freshLines, ...(needsShipping ? { shipping } : {}) }),
+        body: JSON.stringify({ customer, paymentMethod, lines: freshLines, ...(needsShipping ? { shipping: effectiveShipping } : {}) }),
       });
       setNotice({ kind: 'success', text: `Pedido de ${customer.name} enviado a caja.` });
       setLines([]);
       setQuery('');
       setResults([]);
-      setCustomer({ name: '', docNumber: '' });
+      setCustomer(EMPTY_CUSTOMER);
       setPaymentMethod('');
       setShipping(EMPTY_SHIPPING);
       setLookup({ kind: '', text: '' });
@@ -315,6 +320,11 @@ export default function VendedorPanel() {
                     </div>
 
                     {problems[i] && <p className={styles.problem}>Sin stock suficiente. {problems[i]}</p>}
+                    {line.delivery === 'envio' && (
+                      <p className={styles.shippingNote}>
+                        Va a domicilio: cargá la dirección en <a href="#envio" onClick={(e) => { e.preventDefault(); document.getElementById('envio')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>Datos de envío</a>.
+                      </p>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -335,6 +345,12 @@ export default function VendedorPanel() {
               <label className="field-label" htmlFor="name">Nombre y apellido</label>
               <input id="name" className="input" value={customer.name}
                 onChange={(e) => setCustomer({ ...customer, name: e.target.value })} />
+            </div>
+            <div className="field">
+              <label className="field-label" htmlFor="customer-phone">Teléfono</label>
+              <input id="customer-phone" className="input" inputMode="tel" autoComplete="off" placeholder="11 5555-5555"
+                value={customer.phone} onChange={(e) => setCustomer({ ...customer, phone: e.target.value })} />
+              {customer.phone.trim() && phoneDigits < 8 && <p className={styles.fieldError}>Tiene que tener al menos 8 números.</p>}
             </div>
           </section>
 
@@ -365,8 +381,11 @@ export default function VendedorPanel() {
           </section>
 
           {needsShipping && (
-            <section className={styles.summaryBlock}>
-              <h2 className={styles.summaryTitle}>Envío a domicilio</h2>
+            <section id="envio" className={`${styles.summaryBlock} ${shippingOk ? '' : styles.summaryBlockTodo}`}>
+              <h2 className={styles.summaryTitle}>
+                Datos de envío <span className={styles.shippingCost}>+ {formatMoney(SHIPPING_COST)}</span>
+              </h2>
+              <p className={styles.shippingHelp}>Una línea va a domicilio: completá a dónde se manda.</p>
               <div className={styles.shippingGrid}>
                 <div className={`field ${styles.span2}`}>
                   <label className="field-label" htmlFor="street">Calle</label>
@@ -390,7 +409,7 @@ export default function VendedorPanel() {
                 </div>
                 <div className={`field ${styles.span2}`}>
                   <label className="field-label" htmlFor="phone">Teléfono</label>
-                  <input id="phone" className="input" inputMode="tel" value={shipping.phone} onChange={(e) => setShipping({ ...shipping, phone: e.target.value })} />
+                  <input id="phone" className="input" inputMode="tel" value={effectiveShipping.phone} onChange={(e) => setShipping({ ...shipping, phone: e.target.value })} />
                 </div>
                 <div className={`field ${styles.span2}`}>
                   <label className="field-label" htmlFor="notes">Observaciones u horario (opcional)</label>

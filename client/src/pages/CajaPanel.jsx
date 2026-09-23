@@ -176,7 +176,7 @@ function PedidosTab() {
               <div>
                 <h2 className={styles.detailName}>{selected.customer.name}</h2>
                 <p className={styles.detailMeta}>
-                  DNI {selected.customer.docNumber} · Vendió {selected.sellerName} · {formatDateTime(selected.createdAt)}
+                  DNI {selected.customer.docNumber}{selected.customer.phone ? ` · Tel. ${selected.customer.phone}` : ''} · Vendió {selected.sellerName} · {formatDateTime(selected.createdAt)}
                 </p>
               </div>
               <div className={styles.detailChips}>

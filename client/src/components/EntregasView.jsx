@@ -125,7 +125,7 @@ export default function EntregasView({ initialFilter }) {
               <div>
                 <h3 className={styles.customer}>{order.customer.name}</h3>
                 <p className={styles.meta}>
-                  DNI {order.customer.docNumber} · Vendió {order.sellerName} · {formatDateTime(order.createdAt)}
+                  DNI {order.customer.docNumber}{order.customer.phone ? ` · Tel. ${order.customer.phone}` : ''} · Vendió {order.sellerName} · {formatDateTime(order.createdAt)}
                   {order.odooOrderId ? ` · Odoo #${order.odooOrderId}` : ''}
                 </p>
               </div>

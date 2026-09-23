@@ -227,3 +227,11 @@
   .lineControls .deliverySelect { width: 100%; }
 
 }
+
+/* ---- Teléfono y envío ---- */
+.fieldError { color: var(--removed); font-size: var(--fs-xs); }
+.summaryBlockTodo { box-shadow: inset 0 0 0 1.5px var(--pay-mp); }
+.shippingCost { font-size: var(--fs-sm); font-weight: 500; color: var(--ink-3); margin-left: var(--s-1); }
+.shippingHelp { font-size: var(--fs-sm); color: var(--ink-2); margin-top: calc(var(--s-2) * -1); }
+.shippingNote { margin-top: var(--s-2); font-size: var(--fs-sm); color: var(--pay-mp); }
+.shippingNote a { color: inherit; font-weight: 600; }
