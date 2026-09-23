@@ -1,0 +1,75 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  max-width: 760px;
+  width: 100%;
+  margin: 0 auto;
+  padding: var(--s-6);
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+}
+.head { display: flex; flex-direction: column; gap: var(--s-1); }
+.title { font-size: var(--fs-xl); font-weight: 600; letter-spacing: -0.01em; }
+.subtitle { font-size: var(--fs-lg); font-weight: 600; }
+.muted { color: var(--ink-3); font-size: var(--fs-sm); font-weight: 400; }
+.form { display: flex; align-items: flex-end; gap: var(--s-3); flex-wrap: wrap; }
+.form .field { flex: 1 1 240px; }
+
+.summary { display: flex; flex-direction: column; }
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s-4);
+  padding: var(--s-2) 0;
+  border-bottom: 1px solid var(--line);
+}
+.row dd { font-weight: 600; white-space: nowrap; }
+.sub { padding-left: var(--s-5); color: var(--ink-2); font-size: var(--fs-sm); }
+.sub dd { font-weight: 500; }
+.total { font-size: var(--fs-lg); border-bottom: 2px solid var(--ink); }
+.cash { background: var(--wash); padding-left: var(--s-3); padding-right: var(--s-3); border-radius: var(--r-md); border-bottom: none; margin-top: var(--s-2); }
+.diff { color: var(--removed); font-weight: 600; }
+.ok { color: var(--done); font-weight: 600; }
+
+.closeForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--line);
+}
+.closeForm button { align-self: flex-start; }
+
+.history { display: flex; flex-direction: column; gap: var(--s-3); }
+.list { display: flex; flex-direction: column; gap: var(--s-2); list-style: none; padding: 0; margin: 0; }
+.item { border: 1px solid var(--line); border-radius: var(--r-md); }
+.itemRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  padding: var(--s-3) var(--s-4);
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.itemSide { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-weight: 600; }
+.itemDetail { padding: 0 var(--s-4) var(--s-4); display: flex; flex-direction: column; gap: var(--s-2); }
+
+@media (max-width: 640px) {
+  .body { padding: var(--s-4); }
+  .itemRow { flex-direction: column; align-items: flex-start; }
+  .itemSide { align-items: flex-start; }
+}

@@ -56,6 +56,11 @@ Antes del primer uso real:
   `feria_sellers` y `feria_admins`.
 - Borrar el documento `feria_counters/orders` para que la numeración de
   pedidos arranque en F-0001 el día de la feria.
+- Borrar las cajas de prueba: la colección `feria_cash_sessions` y el
+  documento `feria_counters/cash`. El primer día, Caja abre la caja con el
+  fondo inicial (sin caja abierta no se confirman ventas).
+- Para facturar automáticamente (Factura B, Pto. 9 Web), cargar
+  `ODOO_FERIA_INVOICE_JOURNAL_ID=38` en el backend. Vacío, no factura.
 - El stock sale de Odoo en vivo (almacén Feria: `FER/Stock/exhibicion` y
   `FER/Stock/Rolon`); la columna Stock del Excel ya no se usa. Nadie debe
   sacar stock del almacén Feria por fuera de la app.

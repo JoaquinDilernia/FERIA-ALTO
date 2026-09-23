@@ -7,6 +7,7 @@ import ShippingForm from '../components/ShippingForm.jsx';
 import AddProductSearch from '../components/AddProductSearch.jsx';
 import HistoryView from '../components/HistoryView.jsx';
 import StatsView from '../components/StatsView.jsx';
+import CashView from '../components/CashView.jsx';
 import {
   AppHeader, PaymentChip, OrderStatusChip, OrderNumbers, Notice, EmptyState,
 } from '../components/ui.jsx';
@@ -29,6 +30,8 @@ function PedidosTab() {
   const [shippingEdit, setShippingEdit] = useState(null);
   const [offline, setOffline] = useState(false);
   const [adding, setAdding] = useState(false);
+  // null = todavía no se sabe; false = caja cerrada (no se confirma).
+  const [cashOpen, setCashOpen] = useState(null);
 
   // Traemos pendientes Y errores: si un confirm falla, el backend deja el
   // pedido en 'error' y, si sólo miráramos 'pendiente', la venta desaparecería
@@ -59,6 +62,16 @@ function PedidosTab() {
     const interval = setInterval(loadOrders, 5000);
     return () => clearInterval(interval);
   }, [loadOrders]);
+
+  // Sin caja abierta el backend no deja confirmar: se avisa antes de cobrar.
+  useEffect(() => {
+    const loadCash = () => apiFetch('/api/feria/cash/current')
+      .then(({ session }) => setCashOpen(!!session))
+      .catch(() => {});
+    loadCash();
+    const interval = setInterval(loadCash, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Stock en vivo de cada SKU del pedido (disponible = Odoo − reservado, así
   // que ya descuenta lo que reserva este mismo pedido).
@@ -236,6 +249,9 @@ function PedidosTab() {
 
       <main className={styles.detail}>
         <Notice kind={notice.kind || 'info'} onClose={() => setNotice({ kind: '', text: '' })}>{notice.text}</Notice>
+        {cashOpen === false && (
+          <Notice kind="error">La caja está cerrada: abrila en la pestaña “Caja del día” para poder confirmar ventas.</Notice>
+        )}
 
         {!selected ? (
           <EmptyState title="Elegí un pedido de la lista">Vas a ver sus productos, el stock y el total a cobrar.</EmptyState>
@@ -328,7 +344,7 @@ function PedidosTab() {
               {editable && (
                 <div className={styles.actions}>
                   <button className="btn btn-danger btn-lg" onClick={handleCancel} disabled={!!busy}>Cancelar pedido</button>
-                  <button className={`btn btn-primary btn-lg ${styles.confirmBtn}`} onClick={handleConfirm} disabled={!!busy}>
+                  <button className={`btn btn-primary btn-lg ${styles.confirmBtn}`} onClick={handleConfirm} disabled={!!busy || cashOpen === false}>
                     {busy === 'confirm' ? 'Confirmando en Odoo…' : (selected.status === 'error' ? 'Reintentar confirmación' : 'Cobrado, confirmar venta')}
                   </button>
                 </div>
@@ -433,6 +449,7 @@ function RebajasTab() {
 
 const TABS = [
   { value: 'pedidos', label: 'Pedidos' },
+  { value: 'caja', label: 'Caja del día' },
   { value: 'entregas', label: 'Entregas' },
   { value: 'historial', label: 'Historial' },
   { value: 'estadisticas', label: 'Estadísticas' },
@@ -447,6 +464,7 @@ export default function CajaPanel() {
     <div className={styles.page}>
       <AppHeader panel="caja" userName={user.name} tabs={TABS} activeTab={tab} onTabChange={setTab} />
       {tab === 'pedidos' && <PedidosTab />}
+      {tab === 'caja' && <CashView />}
       {/* Caja arranca en "Retiros en feria" (lo que el cliente viene a buscar),
           pero puede ver y marcar todo, igual que Logística. */}
       {tab === 'entregas' && <EntregasView initialFilter="retiros_feria" />}
