@@ -1,0 +1,38 @@
+.table { width: 100%; margin: var(--space-4) 0; border-collapse: collapse; }
+.table td {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--font-size-sm);
+  vertical-align: top;
+}
+.sub { color: var(--color-text-muted); font-size: var(--font-size-xs); margin-top: var(--space-1); }
+.removed td { text-decoration: line-through; color: var(--color-text-faint); }
+.removed td:nth-child(3) { text-decoration: none; }
+.select {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  margin-right: var(--space-1);
+  font-size: var(--font-size-xs);
+}
+.badge {
+  display: inline-block;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+}
+.badgePending { background: var(--color-warning-bg); color: var(--color-warning); }
+.badgeSent { background: var(--color-primary-subtle); color: var(--color-primary); }
+.badgeDone { background: var(--color-success-bg); color: var(--color-success); }
+.badgeRemoved { background: var(--color-surface-alt); color: var(--color-text-muted); }
+.actions { display: flex; gap: var(--space-1); flex-wrap: wrap; justify-content: flex-end; }
+.actions button {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-primary);
+  font-size: var(--font-size-xs);
+}
+.actions button:disabled { opacity: 0.5; }
