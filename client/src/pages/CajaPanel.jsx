@@ -393,25 +393,35 @@ function RebajasTab() {
             <p className={styles.detailMeta}>{p.sku}{p.color ? ` · ${p.color.trim()}` : ''}</p>
           </div>
           {['falla', 'discontinuo'].map(condition => p.condiciones[condition].disponible && (
-            <div key={condition} className={styles.rebajaRow}>
-              <div>
-                <p className={styles.rebajaCondition}>{CONDITION_LABELS[condition]}</p>
-                <p className={`num ${styles.rebajaPrice}`}>{formatMoney(p.condiciones[condition].precioTabla)}</p>
-              </div>
-              <div className={styles.levels} role="radiogroup" aria-label={`Rebaja ${CONDITION_LABELS[condition]}`}>
-                {[0, 1, 2].map(level => (
-                  <button
-                    key={level}
-                    type="button"
-                    role="radio"
-                    aria-checked={p.condiciones[condition].rebajaActiva === level}
-                    disabled={saving === p.sku + condition}
-                    className={p.condiciones[condition].rebajaActiva === level ? styles.levelActive : ''}
-                    onClick={() => setRebaja(p.sku, condition, level)}
-                  >
-                    {REBAJA_LABELS[level]}
-                  </button>
-                ))}
+            <div key={condition} className={styles.rebajaSection}>
+              <p className={styles.rebajaCondition}>
+                {CONDITION_LABELS[condition]} · vigente <span className="num">{formatMoney(p.condiciones[condition].precioTabla)}</span>
+              </p>
+              {/* Cada nivel muestra lo que paga el cliente con cada medio de
+                  pago: se elige la rebaja sabiendo el precio final. */}
+              <div className={styles.levelCards} role="radiogroup" aria-label={`Rebaja ${CONDITION_LABELS[condition]}`}>
+                {(p.condiciones[condition].niveles ?? []).map(n => {
+                  const active = p.condiciones[condition].rebajaActiva === n.level;
+                  return (
+                    <button
+                      key={n.level}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      disabled={saving === p.sku + condition}
+                      className={`${styles.levelCard} ${active ? styles.levelCardActive : ''}`}
+                      onClick={() => !active && setRebaja(p.sku, condition, n.level)}
+                    >
+                      <span className={styles.levelName}>{REBAJA_LABELS[n.level]}{active ? ' · activa' : ''}</span>
+                      <span className={`num ${styles.levelPrice}`}>{formatMoney(n.precioTabla)}</span>
+                      <span className={styles.levelPays}>
+                        <span>Transferencia <b className="num">{formatMoney(n.precios.transferencia)}</b></span>
+                        <span>Efectivo <b className="num">{formatMoney(n.precios.efectivo)}</b></span>
+                        <span>Mercado Pago <b className="num">{formatMoney(n.precios.mercadopago)}</b></span>
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ))}
