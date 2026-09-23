@@ -27,6 +27,25 @@ export default function HistoryView() {
   const [status, setStatus] = useState('todos');
   const [search, setSearch] = useState('');
   const [openId, setOpenId] = useState(null);
+  const [annulling, setAnnulling] = useState('');
+  const [notice, setNotice] = useState({ kind: '', text: '' });
+
+  // Anula en Odoo y en la app (libera lo reservado). Solo ventas sin nada
+  // entregado; el backend lo vuelve a verificar.
+  async function annul(order) {
+    if (!window.confirm(`¿Anular la venta ${order.number ?? ''} de ${order.customer.name}? Se cancela en Odoo y se libera el stock reservado.`)) return;
+    setAnnulling(order.id);
+    setNotice({ kind: '', text: '' });
+    try {
+      await apiFetch(`/api/feria/orders/${order.id}/annul`, { method: 'POST' });
+      setNotice({ kind: 'success', text: `Venta ${order.number ?? ''} anulada en Odoo y en la app.` });
+      await load();
+    } catch (err) {
+      setNotice({ kind: 'error', text: err.message });
+    } finally {
+      setAnnulling('');
+    }
+  }
 
   const load = useCallback(async () => {
     setError('');
@@ -71,6 +90,7 @@ export default function HistoryView() {
       </div>
 
       <Notice kind="error">{error}</Notice>
+      <Notice kind={notice.kind || 'info'} onClose={() => setNotice({ kind: '', text: '' })}>{notice.text}</Notice>
       {!loading && visible.length === 0 && <EmptyState title="No hay pedidos para mostrar">Probá con otro filtro o búsqueda.</EmptyState>}
 
       <ul className={styles.list}>
@@ -97,7 +117,7 @@ export default function HistoryView() {
                 <div className={styles.detail}>
                   <p className={styles.meta}>
                     DNI {order.customer.docNumber}{order.customer.phone ? ` · Tel. ${order.customer.phone}` : ''}
-                    {order.cancelledBy ? ` · Cancelado por ${order.cancelledBy} el ${formatDateTime(order.cancelledAt)}` : ''}
+                    {order.cancelledBy ? ` · ${order.cancelReason ?? 'Cancelado'} (${order.cancelledBy}, ${formatDateTime(order.cancelledAt)})` : ''}
                   </p>
                   <PaymentChip method={order.paymentMethod} />
                   {order.errorDetail && <Notice kind="error">{order.errorDetail}</Notice>}
@@ -107,6 +127,17 @@ export default function HistoryView() {
                     </p>
                   )}
                   <OrderLines lines={order.lines ?? []} />
+                  {order.status === 'confirmado' && (
+                    (order.lines ?? []).some(l => l.status === 'entregado') ? (
+                      <p className={styles.meta}>
+                        Para anular esta venta, hacelo en Odoo con la devolución de lo entregado: la app se actualiza sola en unos minutos.
+                      </p>
+                    ) : (
+                      <button type="button" className="btn btn-danger btn-sm" disabled={annulling === order.id} onClick={() => annul(order)}>
+                        {annulling === order.id ? 'Anulando en Odoo…' : 'Anular venta'}
+                      </button>
+                    )
+                  )}
                 </div>
               )}
             </li>
