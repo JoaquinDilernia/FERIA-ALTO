@@ -57,7 +57,7 @@
 .lines { display: flex; flex-direction: column; gap: var(--space-2); }
 .lineRow {
   display: grid;
-  grid-template-columns: 1fr 60px 90px 30px;
+  grid-template-columns: 1fr 60px 150px 170px 90px 30px;
   gap: var(--space-2);
   align-items: center;
   font-size: var(--font-size-sm);
@@ -89,3 +89,14 @@
   font-weight: 600;
 }
 .submitBtn:disabled { opacity: 0.5; }
+.stockInfo { display: block; margin-bottom: var(--space-1); font-size: var(--font-size-xs); color: var(--color-text-muted); }
+.noStock { font-size: var(--font-size-xs); color: var(--color-error); }
+.lineSelect {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+}
+.problems { color: var(--color-error); font-size: var(--font-size-sm); margin: var(--space-2) 0; }
+.shippingGrid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+.shippingGrid .full { grid-column: 1 / -1; }
