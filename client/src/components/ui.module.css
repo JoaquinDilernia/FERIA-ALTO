@@ -1,0 +1,120 @@
+/* ---- Encabezado de panel ---- */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  min-height: 64px;
+  padding: 0 var(--s-6);
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: baseline; gap: var(--s-3); }
+.brandLogo { height: 26px; width: auto; align-self: center; }
+/* El nombre del panel en minúscula con punto, como el logo. */
+.panelName { font-size: var(--fs-xl); font-weight: 600; letter-spacing: -0.01em; line-height: 1; }
+.tabs { display: flex; gap: var(--s-1); margin-left: var(--s-6); }
+.tab {
+  min-height: 40px;
+  padding: 0 var(--s-4);
+  border: none;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--ink-2);
+  font-size: var(--fs-md);
+  font-weight: 500;
+}
+.tab:hover { background: var(--wash); color: var(--ink); }
+.tabActive, .tabActive:hover { background: var(--ink); color: var(--paper); }
+.headerEnd { margin-left: auto; display: flex; align-items: center; gap: var(--s-3); }
+.userName { font-size: var(--fs-sm); color: var(--ink-2); }
+
+@media (max-width: 720px) {
+  .header { flex-wrap: wrap; padding: var(--s-2) var(--s-4); gap: var(--s-2); }
+  .tabs { order: 3; width: 100%; margin-left: 0; overflow-x: auto; }
+  .userName { display: none; }
+}
+
+/* ---- Etiquetas (chips) ----
+   Arrancan con un punto de color: el punto del logo. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 8px;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.chip::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.chipLg { padding: 5px 12px 5px 10px; font-size: var(--fs-sm); }
+.tone-pending { background: var(--pending-bg); color: var(--pending); }
+.tone-sent { background: var(--sent-bg); color: var(--sent); }
+.tone-done { background: var(--done-bg); color: var(--done); }
+.tone-removed { background: var(--removed-bg); color: var(--removed); }
+.tone-transfer { background: var(--pay-transfer-bg); color: var(--pay-transfer); }
+.tone-cash { background: var(--pay-cash-bg); color: var(--pay-cash); }
+.tone-mp { background: var(--pay-mp-bg); color: var(--pay-mp); }
+.tone-neutral { background: var(--wash-2); color: var(--ink-2); }
+
+/* ---- Aviso ---- */
+.notice {
+  display: flex;
+  gap: var(--s-3);
+  align-items: flex-start;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+}
+.notice-error { background: var(--removed-bg); color: var(--removed); }
+.notice-success { background: var(--done-bg); color: var(--done); }
+.notice-info { background: var(--wash); color: var(--ink-2); }
+.noticeClose { margin-left: auto; border: none; background: none; color: inherit; font-size: var(--fs-lg); line-height: 1; }
+
+/* ---- Vacío ---- */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-12) var(--s-6);
+  color: var(--ink-3);
+  text-align: center;
+}
+.emptyTitle { color: var(--ink-2); font-size: var(--fs-lg); font-weight: 500; }
+
+/* ---- Ingreso ---- */
+.loginPage {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--s-6) var(--s-4);
+  background: var(--wash);
+}
+.loginCard {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-10) var(--s-8);
+  background: var(--paper);
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+}
+.loginLogo { width: 200px; height: auto; margin-bottom: var(--s-2); }
+.loginTitle { font-size: var(--fs-2xl); font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; }
+.loginHint { color: var(--ink-2); font-size: var(--fs-sm); margin-top: calc(var(--s-2) * -1); }
+.pinInput { font-size: var(--fs-2xl); letter-spacing: 0.4em; text-align: center; min-height: 64px; }

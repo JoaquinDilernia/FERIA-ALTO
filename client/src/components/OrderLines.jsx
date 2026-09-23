@@ -1,22 +1,17 @@
-import { LOCATION_LABELS, DELIVERY_LABELS, RESERVING_STATUSES, formatDateTime } from '../lib/feriaLabels.js';
+import {
+  LOCATION_LABELS, DELIVERY_LABELS, RESERVING_STATUSES, CONDITION_LABELS, formatDateTime, formatMoney,
+} from '../lib/feriaLabels.js';
+import { LineStatusChip } from './ui.jsx';
 import styles from './OrderLines.module.css';
 
-function StatusBadge({ line }) {
-  switch (line.status) {
-    case 'entregado':
-      return <span className={`${styles.badge} ${styles.badgeDone}`}>✅ Entregado {formatDateTime(line.deliveredAt)} · {line.deliveredBy}</span>;
-    case 'enviado_feria':
-      return <span className={`${styles.badge} ${styles.badgeSent}`}>🚚 Enviado a feria {formatDateTime(line.sentToFeriaAt)} · {line.sentToFeriaBy}</span>;
-    case 'eliminado':
-      return <span className={`${styles.badge} ${styles.badgeRemoved}`}>Eliminado {formatDateTime(line.removedAt)} · {line.removedBy}</span>;
-    case 'pendiente':
-      return <span className={`${styles.badge} ${styles.badgePending}`}>⏳ Pendiente</span>;
-    default:
-      return null;
-  }
+function statusDetail(line) {
+  if (line.status === 'entregado') return `${formatDateTime(line.deliveredAt)} · ${line.deliveredBy ?? ''}`;
+  if (line.status === 'enviado_feria') return `${formatDateTime(line.sentToFeriaAt)} · ${line.sentToFeriaBy ?? ''}`;
+  if (line.status === 'eliminado') return `${formatDateTime(line.removedAt)} · ${line.removedBy ?? ''}`;
+  return '';
 }
 
-// Tabla de líneas de un pedido con su estado. Los controles aparecen solo si
+// Lista de líneas de un pedido con su estado. Los controles aparecen solo si
 // el que la usa pasa el callback: así Caja y Logística comparten la misma
 // vista y cada una habilita lo que corresponde.
 // `disabled` apaga los controles de TODAS las líneas mientras hay una acción
@@ -33,53 +28,74 @@ export default function OrderLines({ lines, stockBySku = {}, disabled = false, o
   }
 
   return (
-    <table className={styles.table}>
-      <tbody>
-        {lines.map((l, i) => {
-          const reserving = RESERVING_STATUSES.includes(l.status);
-          const busy = disabled;
-          const stock = stockBySku[l.sku];
-          return (
-            <tr key={l.lineId || i} className={l.status === 'eliminado' ? styles.removed : ''}>
-              <td>
-                {l.modelo} ({l.sku})
-                <div className={styles.sub}>{l.condition} · x{l.qty} · ${(l.qty * l.unitPrice).toFixed(0)}</div>
-              </td>
-              <td>
-                {onEdit && reserving ? (
-                  <>
-                    <select className={styles.select} value={l.location} disabled={busy} onChange={(e) => changeLocation(l, e.target.value)}>
-                      {Object.entries(LOCATION_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                    </select>
-                    <select className={styles.select} value={l.delivery} disabled={busy} onChange={(e) => onEdit(l, { delivery: e.target.value })}>
-                      {Object.entries(DELIVERY_LABELS).map(([value, label]) => (
-                        <option key={value} value={value} disabled={value === 'ahora' && l.location !== 'exhibicion'}>{label}</option>
-                      ))}
-                    </select>
-                  </>
-                ) : (
-                  <span>{LOCATION_LABELS[l.location] ?? '—'} · {DELIVERY_LABELS[l.delivery] ?? '—'}</span>
-                )}
-                {stock && <div className={styles.sub}>Disponible: Exhibición {stock.exhibicion} · Rolón {stock.rolon}</div>}
-              </td>
-              <td><StatusBadge line={l} /></td>
-              <td>
-                <div className={styles.actions}>
-                  {reserving && onSendToFeria && l.delivery === 'retira_feria' && l.status === 'pendiente' && (
-                    <button type="button" disabled={busy} onClick={() => onSendToFeria(l)}>Enviado a feria</button>
-                  )}
-                  {reserving && onDeliver && (
-                    <button type="button" disabled={busy} onClick={() => onDeliver(l)}>Hecho</button>
-                  )}
-                  {reserving && onRemove && (
-                    <button type="button" disabled={busy} onClick={() => onRemove(l)}>Eliminar</button>
-                  )}
+    <ul className={styles.list}>
+      {lines.map((l, i) => {
+        const reserving = RESERVING_STATUSES.includes(l.status);
+        const stock = stockBySku[l.sku];
+        const detail = statusDetail(l);
+        return (
+          <li key={l.lineId || i} className={`${styles.line} ${styles[`line-${l.status}`] ?? ''}`}>
+            <div className={styles.product}>
+              <p className={styles.name}>{l.modelo}</p>
+              <p className={styles.meta}>
+                {l.sku} · {CONDITION_LABELS[l.condition] ?? l.condition} · {l.qty} {l.qty === 1 ? 'unidad' : 'unidades'}
+              </p>
+            </div>
+
+            <div className={styles.where}>
+              {onEdit && reserving ? (
+                <div className={styles.editors}>
+                  <select className="select select-sm" value={l.location} disabled={disabled}
+                    onChange={(e) => changeLocation(l, e.target.value)} aria-label="Sale de">
+                    {Object.entries(LOCATION_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                  <select className="select select-sm" value={l.delivery} disabled={disabled}
+                    onChange={(e) => onEdit(l, { delivery: e.target.value })} aria-label="Entrega">
+                    {Object.entries(DELIVERY_LABELS).map(([value, label]) => (
+                      <option key={value} value={value} disabled={value === 'ahora' && l.location !== 'exhibicion'}>{label}</option>
+                    ))}
+                  </select>
                 </div>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+              ) : (
+                <p className={styles.whereText}>
+                  <strong>{DELIVERY_LABELS[l.delivery] ?? '—'}</strong>
+                  <span> desde {LOCATION_LABELS[l.location] ?? '—'}</span>
+                </p>
+              )}
+              {stock && reserving && (
+                <p className={styles.meta}>Disponible · Exhibición {stock.exhibicion} · Rolón {stock.rolon}</p>
+              )}
+            </div>
+
+            <div className={styles.status}>
+              <LineStatusChip status={l.status} />
+              {detail && <p className={styles.meta}>{detail}</p>}
+            </div>
+
+            <p className={`num ${styles.price}`}>{formatMoney(l.qty * l.unitPrice)}</p>
+
+            {reserving && (onSendToFeria || onDeliver || onRemove) && (
+              <div className={styles.actions}>
+                {onSendToFeria && l.delivery === 'retira_feria' && l.status === 'pendiente' && (
+                  <button type="button" className="btn btn-secondary btn-sm" disabled={disabled} onClick={() => onSendToFeria(l)}>
+                    Enviado a feria
+                  </button>
+                )}
+                {onDeliver && (
+                  <button type="button" className="btn btn-success btn-sm" disabled={disabled} onClick={() => onDeliver(l)}>
+                    Hecho, se lo llevó
+                  </button>
+                )}
+                {onRemove && (
+                  <button type="button" className="btn btn-danger btn-sm" disabled={disabled} onClick={() => onRemove(l)}>
+                    Eliminar
+                  </button>
+                )}
+              </div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }

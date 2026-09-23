@@ -1,21 +1,14 @@
 import EntregasView from '../components/EntregasView.jsx';
+import { AppHeader } from '../components/ui.jsx';
 import styles from './CajaPanel.module.css';
-
-function logout() {
-  localStorage.removeItem('feria_token');
-  localStorage.removeItem('feria_role');
-  window.location.reload();
-}
 
 // Mismo login que caja (rol 'caja'): para la feria no hace falta un rol
 // aparte, y así el admin en caja puede resolver cualquier cosa desde acá.
 export default function LogisticaPanel() {
+  const user = JSON.parse(localStorage.getItem('feria_user') || '{}');
   return (
     <div className={styles.page}>
-      <nav className={styles.tabs}>
-        <span className={`${styles.tabBtn} ${styles.tabBtnActive}`}>Logística</span>
-        <button type="button" className={styles.logoutBtn} onClick={logout}>Salir</button>
-      </nav>
+      <AppHeader panel="logística" userName={user.name} />
       <EntregasView initialFilter="mandar_feria" />
     </div>
   );

@@ -1,38 +1,48 @@
-.table { width: 100%; margin: var(--space-4) 0; border-collapse: collapse; }
-.table td {
-  padding: var(--space-2);
-  border-bottom: 1px solid var(--color-border);
-  font-size: var(--font-size-sm);
-  vertical-align: top;
+.list { display: flex; flex-direction: column; }
+
+.line {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.3fr) minmax(0, 1fr) auto;
+  grid-template-areas:
+    'product where status price'
+    'actions actions actions actions';
+  gap: var(--s-2) var(--s-4);
+  align-items: start;
+  padding: var(--s-4) 0 var(--s-4) var(--s-4);
+  border-top: 1px solid var(--line);
+  /* Barra de color a la izquierda: el estado se lee de un vistazo. */
+  border-left: 4px solid transparent;
 }
-.sub { color: var(--color-text-muted); font-size: var(--font-size-xs); margin-top: var(--space-1); }
-.removed td { text-decoration: line-through; color: var(--color-text-faint); }
-.removed td:nth-child(3) { text-decoration: none; }
-.select {
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  margin-right: var(--space-1);
-  font-size: var(--font-size-xs);
+.line:first-child { border-top: none; }
+.line-pendiente { border-left-color: var(--pending); }
+.line-enviado_feria { border-left-color: var(--sent); }
+.line-entregado { border-left-color: var(--done); }
+.line-eliminado { border-left-color: var(--removed); }
+.line-eliminado .name,
+.line-eliminado .price { text-decoration: line-through; color: var(--ink-3); }
+
+.product { grid-area: product; min-width: 0; }
+.where { grid-area: where; min-width: 0; }
+.status { grid-area: status; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.price { grid-area: price; font-weight: 600; text-align: right; padding-right: var(--s-2); }
+.actions { grid-area: actions; display: flex; gap: var(--s-2); flex-wrap: wrap; justify-content: flex-end; padding-right: var(--s-2); }
+
+.name { font-weight: 600; }
+.meta { color: var(--ink-3); font-size: var(--fs-xs); }
+.whereText { font-size: var(--fs-sm); }
+.whereText span { color: var(--ink-2); }
+.editors { display: flex; gap: var(--s-2); flex-wrap: wrap; margin-bottom: 2px; }
+.editors .select { width: auto; }
+
+@media (max-width: 760px) {
+  .line {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'product price'
+      'where where'
+      'status status'
+      'actions actions';
+  }
+  .actions { justify-content: stretch; }
+  .actions .btn { flex: 1; }
 }
-.badge {
-  display: inline-block;
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-full);
-  font-size: var(--font-size-xs);
-  white-space: nowrap;
-}
-.badgePending { background: var(--color-warning-bg); color: var(--color-warning); }
-.badgeSent { background: var(--color-primary-subtle); color: var(--color-primary); }
-.badgeDone { background: var(--color-success-bg); color: var(--color-success); }
-.badgeRemoved { background: var(--color-surface-alt); color: var(--color-text-muted); }
-.actions { display: flex; gap: var(--space-1); flex-wrap: wrap; justify-content: flex-end; }
-.actions button {
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--color-primary);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  color: var(--color-primary);
-  font-size: var(--font-size-xs);
-}
-.actions button:disabled { opacity: 0.5; }

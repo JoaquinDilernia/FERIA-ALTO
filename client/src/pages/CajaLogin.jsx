@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { apiFetch } from '../lib/api.js';
-import styles from './CajaLogin.module.css';
-import logo from '../assets/ALTORANCHO.png';
+import { LoginShell, Notice } from '../components/ui.jsx';
 
-export default function CajaLogin() {
+// Mismo ingreso para Caja y Logística (rol 'caja'); `panel` solo cambia el
+// título para que cada uno sepa dónde está entrando.
+export default function CajaLogin({ panel = 'caja' }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -29,23 +30,21 @@ export default function CajaLogin() {
   }
 
   return (
-    <div className={styles.page}>
-      <form className={styles.card} onSubmit={handleSubmit}>
-        <img src={logo} alt="Alto Rancho" className={styles.logo} />
-        <h1 className={styles.title}>Feria — Caja</h1>
-        <input
-          className={styles.input} type="email" placeholder="Email"
-          value={email} onChange={(e) => setEmail(e.target.value)} autoFocus
-        />
-        <input
-          className={styles.input} type="password" placeholder="Contraseña"
-          value={password} onChange={(e) => setPassword(e.target.value)}
-        />
-        {error && <p className={styles.error}>{error}</p>}
-        <button className={styles.btn} type="submit" disabled={loading || !email || !password}>
-          {loading ? 'Entrando...' : 'Entrar'}
-        </button>
-      </form>
-    </div>
+    <LoginShell title={`${panel}.`} hint="Ingresá con tu usuario de caja." onSubmit={handleSubmit}>
+      <div className="field">
+        <label className="field-label" htmlFor="email">Email</label>
+        <input id="email" className="input" type="email" autoComplete="username"
+          value={email} onChange={(e) => setEmail(e.target.value)} autoFocus />
+      </div>
+      <div className="field">
+        <label className="field-label" htmlFor="password">Contraseña</label>
+        <input id="password" className="input" type="password" autoComplete="current-password"
+          value={password} onChange={(e) => setPassword(e.target.value)} />
+      </div>
+      <Notice kind="error">{error}</Notice>
+      <button className="btn btn-primary btn-lg btn-block" type="submit" disabled={loading || !email || !password}>
+        {loading ? 'Entrando…' : 'Entrar'}
+      </button>
+    </LoginShell>
   );
 }

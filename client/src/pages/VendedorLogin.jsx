@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { apiFetch } from '../lib/api.js';
-import styles from './VendedorLogin.module.css';
-import logo from '../assets/ALTORANCHO.png';
+import { LoginShell, Notice, uiStyles } from '../components/ui.jsx';
 
 export default function VendedorLogin() {
   const [pin, setPin] = useState('');
@@ -28,24 +27,23 @@ export default function VendedorLogin() {
   }
 
   return (
-    <div className={styles.page}>
-      <form className={styles.card} onSubmit={handleSubmit}>
-        <img src={logo} alt="Alto Rancho" className={styles.logo} />
-        <h1 className={styles.title}>Feria — Vendedor</h1>
-        <input
-          className={styles.input}
-          type="password"
-          inputMode="numeric"
-          placeholder="Tu PIN"
-          value={pin}
-          onChange={(e) => setPin(e.target.value)}
-          autoFocus
-        />
-        {error && <p className={styles.error}>{error}</p>}
-        <button className={styles.btn} type="submit" disabled={loading || !pin}>
-          {loading ? 'Entrando...' : 'Entrar'}
-        </button>
-      </form>
-    </div>
+    <LoginShell title="vendedor." hint="Ingresá tu PIN para cargar pedidos." onSubmit={handleSubmit}>
+      <label className="sr-only" htmlFor="pin">PIN</label>
+      <input
+        id="pin"
+        className={`input ${uiStyles.pinInput}`}
+        type="password"
+        inputMode="numeric"
+        autoComplete="off"
+        placeholder="••••"
+        value={pin}
+        onChange={(e) => setPin(e.target.value)}
+        autoFocus
+      />
+      <Notice kind="error">{error}</Notice>
+      <button className="btn btn-primary btn-lg btn-block" type="submit" disabled={loading || !pin}>
+        {loading ? 'Entrando…' : 'Entrar'}
+      </button>
+    </LoginShell>
   );
 }

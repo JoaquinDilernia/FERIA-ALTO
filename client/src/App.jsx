@@ -16,7 +16,7 @@ export default function App() {
       <Route path="/" element={<Navigate to="/vendedor" replace />} />
       <Route path="/vendedor" element={hasSession('vendedor') ? <VendedorPanel /> : <VendedorLogin />} />
       <Route path="/caja" element={hasSession('caja') ? <CajaPanel /> : <CajaLogin />} />
-      <Route path="/logistica" element={hasSession('caja') ? <LogisticaPanel /> : <CajaLogin />} />
+      <Route path="/logistica" element={hasSession('caja') ? <LogisticaPanel /> : <CajaLogin panel="logística" />} />
       <Route path="/feria" element={<FeriaPublico />} />
     </Routes>
   );

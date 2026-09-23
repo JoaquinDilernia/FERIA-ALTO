@@ -1,13 +1,10 @@
 import { useState, useRef } from 'react';
 import { apiFetch } from '../lib/api.js';
-import { LOCATION_LABELS, DELIVERY_LABELS, SHIPPING_COST } from '../lib/feriaLabels.js';
+import {
+  LOCATION_LABELS, DELIVERY_LABELS, SHIPPING_COST, PAYMENT_METHODS, CONDITION_LABELS, formatMoney,
+} from '../lib/feriaLabels.js';
+import { AppHeader, Chip, Notice, EmptyState } from '../components/ui.jsx';
 import styles from './VendedorPanel.module.css';
-
-const PAYMENT_METHODS = [
-  { value: 'transferencia', label: 'Transferencia', discountPct: 20 },
-  { value: 'efectivo', label: 'Efectivo', discountPct: 15 },
-  { value: 'cuotas', label: '3 cuotas', discountPct: 0 },
-];
 
 const SEARCH_MIN_CHARS = 6;
 const EMPTY_SHIPPING = { street: '', number: '', floor: '', city: '', zip: '', phone: '', notes: '' };
@@ -22,52 +19,57 @@ function finalUnitPrice(tablePrice, paymentMethod) {
 }
 
 // Dos líneas del mismo SKU en la misma ubicación compiten por el mismo stock:
-// se suman antes de comparar contra el disponible.
-function stockProblems(lines) {
+// se suman antes de comparar contra el disponible. Devuelve, por índice de
+// línea, el problema a mostrar en esa línea.
+function stockProblemsByLine(lines) {
   const requested = new Map();
   for (const l of lines) {
     const key = `${l.sku}__${l.location}`;
     requested.set(key, (requested.get(key) || 0) + l.qty);
   }
-  const problems = [];
-  for (const [key, qty] of requested) {
-    const [sku, location] = key.split('__');
-    const line = lines.find(l => l.sku === sku && l.location === location);
-    const available = line.stock?.[location] ?? 0;
-    if (qty > available) problems.push(`${line.modelo} en ${LOCATION_LABELS[location]}: pediste ${qty}, hay ${available}`);
-  }
+  const problems = {};
+  lines.forEach((l, i) => {
+    const qty = requested.get(`${l.sku}__${l.location}`);
+    const available = l.stock?.[l.location] ?? 0;
+    if (qty > available) {
+      problems[i] = `En ${LOCATION_LABELS[l.location]} hay ${available} y el pedido lleva ${qty}.`;
+    }
+  });
   return problems;
-}
-
-function logout() {
-  localStorage.removeItem('feria_token');
-  localStorage.removeItem('feria_role');
-  window.location.reload();
 }
 
 export default function VendedorPanel() {
   const seller = JSON.parse(localStorage.getItem('feria_seller') || '{}');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
+  const [searching, setSearching] = useState(false);
   const [lines, setLines] = useState([]);
   const [customer, setCustomer] = useState({ name: '', docNumber: '' });
-  const [lookupStatus, setLookupStatus] = useState('');
+  const [lookup, setLookup] = useState({ kind: '', text: '' });
   const [paymentMethod, setPaymentMethod] = useState('');
   const [shipping, setShipping] = useState(EMPTY_SHIPPING);
-  const [status, setStatus] = useState('');
+  const [sending, setSending] = useState(false);
+  const [notice, setNotice] = useState({ kind: '', text: '' });
   const searchTimeout = useRef(null);
   const lookupTimeout = useRef(null);
 
   function handleQueryChange(value) {
     setQuery(value);
     clearTimeout(searchTimeout.current);
-    if (value.trim().length < SEARCH_MIN_CHARS) return setResults([]);
+    if (value.trim().length < SEARCH_MIN_CHARS) {
+      setResults([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
     searchTimeout.current = setTimeout(async () => {
       try {
         const { products } = await apiFetch(`/api/feria/products/search?q=${encodeURIComponent(value)}`);
         setResults(products);
       } catch {
         setResults([]);
+      } finally {
+        setSearching(false);
       }
     }, 300);
   }
@@ -75,20 +77,20 @@ export default function VendedorPanel() {
   function handleDocNumberChange(value) {
     setCustomer(prev => ({ ...prev, docNumber: value }));
     clearTimeout(lookupTimeout.current);
-    setLookupStatus('');
+    setLookup({ kind: '', text: '' });
     if (value.trim().length < 6) return;
     lookupTimeout.current = setTimeout(async () => {
-      setLookupStatus('Buscando en Odoo...');
+      setLookup({ kind: 'info', text: 'Buscando en Odoo…' });
       try {
         const { found, partner } = await apiFetch(`/api/feria/customers/lookup?docNumber=${encodeURIComponent(value)}`);
         if (found) {
           setCustomer({ name: partner.name, docNumber: partner.vat || value });
-          setLookupStatus('Cliente encontrado en Odoo — datos autocompletados.');
+          setLookup({ kind: 'success', text: 'Cliente encontrado en Odoo.' });
         } else {
-          setLookupStatus('No existe en Odoo todavía — se crea al confirmar la venta.');
+          setLookup({ kind: 'info', text: 'Cliente nuevo: se crea en Odoo al confirmar la venta.' });
         }
       } catch {
-        setLookupStatus('No se pudo consultar Odoo, se puede seguir cargando a mano.');
+        setLookup({ kind: 'info', text: 'No se pudo consultar Odoo. Cargá el nombre a mano.' });
       }
     }, 400);
   }
@@ -121,15 +123,26 @@ export default function VendedorPanel() {
 
   const needsShipping = lines.some(l => l.delivery === 'envio');
   const shippingCost = needsShipping ? SHIPPING_COST : 0;
-  const total = paymentMethod
-    ? lines.reduce((sum, l) => sum + l.qty * finalUnitPrice(l.tablePrice, paymentMethod), 0) + shippingCost
+  const listTotal = lines.reduce((sum, l) => sum + l.qty * l.tablePrice, 0);
+  const selectedMethod = PAYMENT_METHODS.find(m => m.value === paymentMethod);
+  const itemsTotal = selectedMethod
+    ? lines.reduce((sum, l) => sum + l.qty * finalUnitPrice(l.tablePrice, paymentMethod), 0)
     : null;
-  const problems = stockProblems(lines);
+  const problems = stockProblemsByLine(lines);
+  const hasProblems = Object.keys(problems).length > 0;
   const shippingOk = !needsShipping || REQUIRED_SHIPPING.every(f => shipping[f].trim());
+
+  const missing = [];
+  if (!lines.length) missing.push('productos');
+  if (!customer.docNumber.trim() || !customer.name.trim()) missing.push('cliente');
+  if (!paymentMethod) missing.push('medio de pago');
+  if (!shippingOk) missing.push('datos de envío');
+  const canSubmit = missing.length === 0 && !hasProblems && !sending;
 
   async function handleSubmit() {
     if (!canSubmit) return;
-    setStatus('Confirmando precios y stock actuales...');
+    setSending(true);
+    setNotice({ kind: 'info', text: 'Confirmando precios y stock…' });
     try {
       // Precio y stock se vuelven a pedir recién al enviar: caja puede activar
       // una rebaja y otro vendedor puede reservar la última unidad mientras el
@@ -145,10 +158,10 @@ export default function VendedorPanel() {
         const fresh = productCache.get(line.sku);
         const info = fresh?.condiciones?.[line.condition];
         if (!info || !info.disponible || info.precioTabla == null) {
-          throw new Error(`No se pudo confirmar el precio actual de ${line.modelo} — sacalo del pedido y volvé a agregarlo.`);
+          throw new Error(`No se pudo confirmar el precio actual de ${line.modelo}. Sacalo del pedido y volvé a agregarlo.`);
         }
         if (!fresh.stock) {
-          throw new Error(`No se pudo verificar el stock de ${line.modelo} (Odoo no responde) — probá de nuevo en unos segundos.`);
+          throw new Error(`No se pudo verificar el stock de ${line.modelo} porque Odoo no responde. Probá de nuevo en unos segundos.`);
         }
         freshLines.push({
           sku: line.sku, modelo: line.modelo, condition: line.condition,
@@ -160,162 +173,263 @@ export default function VendedorPanel() {
         });
       }
 
-      setStatus('Enviando...');
       await apiFetch('/api/feria/orders', {
         method: 'POST',
         body: JSON.stringify({ customer, paymentMethod, lines: freshLines, ...(needsShipping ? { shipping } : {}) }),
       });
+      setNotice({ kind: 'success', text: `Pedido de ${customer.name} enviado a caja.` });
       setLines([]);
+      setQuery('');
+      setResults([]);
       setCustomer({ name: '', docNumber: '' });
       setPaymentMethod('');
       setShipping(EMPTY_SHIPPING);
-      setLookupStatus('');
-      setStatus('¡Pedido enviado a caja!');
-      setTimeout(() => setStatus(''), 3000);
+      setLookup({ kind: '', text: '' });
     } catch (err) {
-      setStatus(`Error: ${err.message}`);
+      setNotice({ kind: 'error', text: err.message });
+    } finally {
+      setSending(false);
     }
   }
 
-  const canSubmit = lines.length > 0 && customer.name.trim() && customer.docNumber.trim()
-    && paymentMethod && problems.length === 0 && shippingOk;
-
   return (
     <div className={styles.page}>
-      <header className={styles.header}>
-        <span>Vendedor: {seller.name}</span>
-        <button type="button" className={styles.logoutBtn} onClick={logout}>Salir</button>
-      </header>
+      <AppHeader panel="vendedor" userName={seller.name} />
 
-      <div className={styles.field}>
-        <label className={styles.label}>Buscar producto (SKU o modelo, mínimo 6 caracteres)</label>
-        <input
-          className={styles.input}
-          value={query}
-          onChange={(e) => handleQueryChange(e.target.value)}
-          placeholder="Ej: BCT037MA"
-        />
-        {results.length > 0 && (
-          <ul className={styles.resultsList}>
-            {results.map(p => {
-              const sinStock = !p.stock || p.stock.exhibicion + p.stock.rolon === 0;
-              return (
-                <li key={p.sku} className={styles.resultItem}>
-                  <span className={styles.resultName}>{p.modelo} ({p.sku})</span>
-                  <span className={styles.stockInfo}>
-                    {p.stock
-                      ? `Exhibición: ${p.stock.exhibicion} · Rolón: ${p.stock.rolon}`
-                      : 'Stock no disponible (Odoo no responde)'}
-                  </span>
-                  <div className={styles.conditionButtons}>
-                    {p.condiciones.falla.disponible && (
-                      <button type="button" disabled={sinStock} onClick={() => addLine(p, 'falla')}>
-                        Falla — ${p.condiciones.falla.precioTabla}
-                      </button>
-                    )}
-                    {p.condiciones.discontinuo.disponible && (
-                      <button type="button" disabled={sinStock} onClick={() => addLine(p, 'discontinuo')}>
-                        Discontinuo — ${p.condiciones.discontinuo.precioTabla}
-                      </button>
-                    )}
-                    {sinStock && <span className={styles.noStock}>Sin stock</span>}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
-
-      <div className={styles.lines}>
-        {lines.map((line, i) => (
-          <div key={i} className={styles.lineRow}>
-            <span className={styles.lineName}>{line.modelo} ({line.condition})</span>
+      <div className={styles.layout}>
+        <main className={styles.main}>
+          <section className={styles.searchBlock}>
+            <label className={styles.searchLabel} htmlFor="search">Agregar producto</label>
             <input
-              className={styles.qtyInput} type="number" min="1" value={line.qty}
-              onChange={(e) => updateLine(i, { qty: Number(e.target.value) })}
+              id="search"
+              className={`input ${styles.searchInput}`}
+              value={query}
+              onChange={(e) => handleQueryChange(e.target.value)}
+              placeholder="SKU o modelo, mínimo 6 caracteres"
+              autoComplete="off"
             />
-            <select className={styles.lineSelect} value={line.location} onChange={(e) => updateLine(i, { location: e.target.value })}>
-              {Object.entries(LOCATION_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>{label} ({line.stock?.[value] ?? 0})</option>
-              ))}
-            </select>
-            <select className={styles.lineSelect} value={line.delivery} onChange={(e) => updateLine(i, { delivery: e.target.value })}>
-              {Object.entries(DELIVERY_LABELS).map(([value, label]) => (
-                <option key={value} value={value} disabled={value === 'ahora' && line.location !== 'exhibicion'}>{label}</option>
-              ))}
-            </select>
-            <span>
-              {paymentMethod
-                ? `$${(line.qty * finalUnitPrice(line.tablePrice, paymentMethod)).toFixed(0)}`
-                : '—'}
-            </span>
-            <button className={styles.removeBtn} onClick={() => removeLine(i)}>✕</button>
-          </div>
-        ))}
-      </div>
+            {searching && <p className={styles.searchHint}>Buscando…</p>}
+            {!searching && query.trim().length >= SEARCH_MIN_CHARS && results.length === 0 && (
+              <p className={styles.searchHint}>No hay productos de la feria que coincidan con “{query}”.</p>
+            )}
+            {results.length > 0 && (
+              <ul className={styles.results}>
+                {results.map(p => {
+                  const sinStock = !p.stock || p.stock.exhibicion + p.stock.rolon === 0;
+                  return (
+                    <li key={p.sku} className={styles.result}>
+                      <div className={styles.resultInfo}>
+                        <span className={styles.resultName}>{p.modelo}</span>
+                        <span className={styles.resultMeta}>{p.sku}{p.color ? ` · ${p.color.trim()}` : ''}</span>
+                        <div className={styles.stockRow}>
+                          {p.stock ? (
+                            <>
+                              <Chip tone={p.stock.exhibicion > 0 ? 'done' : 'neutral'}>Exhibición {p.stock.exhibicion}</Chip>
+                              <Chip tone={p.stock.rolon > 0 ? 'done' : 'neutral'}>Rolón {p.stock.rolon}</Chip>
+                            </>
+                          ) : (
+                            <Chip tone="removed">Stock no disponible: Odoo no responde</Chip>
+                          )}
+                        </div>
+                      </div>
+                      <div className={styles.conditionButtons}>
+                        {['falla', 'discontinuo'].map(condition => p.condiciones[condition].disponible && (
+                          <button
+                            key={condition}
+                            type="button"
+                            className={styles.conditionBtn}
+                            disabled={sinStock}
+                            onClick={() => addLine(p, condition)}
+                          >
+                            <span className={styles.conditionName}>{CONDITION_LABELS[condition]}</span>
+                            <span className="num">{formatMoney(p.condiciones[condition].precioTabla)}</span>
+                          </button>
+                        ))}
+                        {sinStock && p.stock && <span className={styles.noStock}>Sin stock</span>}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
 
-      {problems.length > 0 && (
-        <div className={styles.problems}>
-          {problems.map(p => <p key={p}>Sin stock suficiente — {p}</p>)}
-        </div>
-      )}
+          <section>
+            <h2 className={styles.sectionTitle}>
+              Pedido <span className={styles.count}>{lines.length ? `${lines.length} ${lines.length === 1 ? 'producto' : 'productos'}` : ''}</span>
+            </h2>
+            {lines.length === 0 ? (
+              <EmptyState title="Todavía no agregaste productos">Buscá por SKU o modelo y elegí la condición.</EmptyState>
+            ) : (
+              <ul className={styles.lines}>
+                {lines.map((line, i) => (
+                  <li key={i} className={`${styles.line} ${problems[i] ? styles.lineProblem : ''}`}>
+                    <div className={styles.lineHead}>
+                      <div>
+                        <p className={styles.lineName}>{line.modelo}</p>
+                        <p className={styles.lineMeta}>{line.sku} · {CONDITION_LABELS[line.condition]}</p>
+                      </div>
+                      <div className={styles.linePrice}>
+                        <span className="num">
+                          {formatMoney(line.qty * (selectedMethod ? finalUnitPrice(line.tablePrice, paymentMethod) : line.tablePrice))}
+                        </span>
+                        {selectedMethod?.discountPct > 0 && (
+                          <span className={`num ${styles.lineListPrice}`}>{formatMoney(line.qty * line.tablePrice)}</span>
+                        )}
+                      </div>
+                      <button type="button" className={styles.removeBtn} onClick={() => removeLine(i)} aria-label={`Quitar ${line.modelo}`}>×</button>
+                    </div>
 
-      <div className={styles.total}>
-        {paymentMethod
-          ? `Total: $${total.toFixed(0)}${needsShipping ? ` (incluye envío $${SHIPPING_COST})` : ''}`
-          : 'Elegí un medio de pago para ver el total'}
-      </div>
+                    <div className={styles.lineControls}>
+                      <div className={styles.stepper} role="group" aria-label="Cantidad">
+                        <button type="button" onClick={() => updateLine(i, { qty: Math.max(1, line.qty - 1) })} aria-label="Una menos">−</button>
+                        <span className="num">{line.qty}</span>
+                        <button type="button" onClick={() => updateLine(i, { qty: line.qty + 1 })} aria-label="Una más">+</button>
+                      </div>
 
-      <div className={styles.field}>
-        <label className={styles.label}>Medio de pago (obligatorio)</label>
-        <div className={styles.paymentButtons}>
-          {PAYMENT_METHODS.map(m => (
-            <button
-              key={m.value}
-              type="button"
-              className={`${styles.paymentBtn} ${paymentMethod === m.value ? styles.paymentBtnActive : ''}`}
-              onClick={() => setPaymentMethod(m.value)}
-            >
-              {m.label}{m.discountPct > 0 ? ` (-${m.discountPct}%)` : ''}
+                      <div className={styles.segmented} role="radiogroup" aria-label="Sale de">
+                        {Object.entries(LOCATION_LABELS).map(([value, label]) => (
+                          <button
+                            key={value}
+                            type="button"
+                            role="radio"
+                            aria-checked={line.location === value}
+                            className={line.location === value ? styles.segmentActive : ''}
+                            onClick={() => updateLine(i, { location: value })}
+                          >
+                            {label} <span className={styles.segmentCount}>{line.stock?.[value] ?? 0}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      <select
+                        className={`select ${styles.deliverySelect}`}
+                        value={line.delivery}
+                        onChange={(e) => updateLine(i, { delivery: e.target.value })}
+                        aria-label="Entrega"
+                      >
+                        {Object.entries(DELIVERY_LABELS).map(([value, label]) => (
+                          <option key={value} value={value} disabled={value === 'ahora' && line.location !== 'exhibicion'}>{label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {problems[i] && <p className={styles.problem}>Sin stock suficiente. {problems[i]}</p>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </main>
+
+        <aside className={styles.summary}>
+          <section className={styles.summaryBlock}>
+            <h2 className={styles.summaryTitle}>Cliente</h2>
+            <div className="field">
+              <label className="field-label" htmlFor="doc">DNI o CUIT</label>
+              <input id="doc" className="input" inputMode="numeric" value={customer.docNumber}
+                onChange={(e) => handleDocNumberChange(e.target.value)} />
+            </div>
+            {lookup.text && <p className={`${styles.lookup} ${styles[`lookup-${lookup.kind}`]}`}>{lookup.text}</p>}
+            <div className="field">
+              <label className="field-label" htmlFor="name">Nombre y apellido</label>
+              <input id="name" className="input" value={customer.name}
+                onChange={(e) => setCustomer({ ...customer, name: e.target.value })} />
+            </div>
+          </section>
+
+          <section className={styles.summaryBlock}>
+            <h2 className={styles.summaryTitle}>Medio de pago</h2>
+            <div className={styles.payGrid} role="radiogroup" aria-label="Medio de pago">
+              {PAYMENT_METHODS.map(m => {
+                const total = lines.length
+                  ? lines.reduce((s, l) => s + l.qty * finalUnitPrice(l.tablePrice, m.value), 0) + shippingCost
+                  : null;
+                return (
+                  <button
+                    key={m.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={paymentMethod === m.value}
+                    className={`${styles.payOption} ${styles[`pay-${m.tone}`]} ${paymentMethod === m.value ? styles.payActive : ''}`}
+                    onClick={() => setPaymentMethod(m.value)}
+                  >
+                    <span className={styles.payRadio} aria-hidden="true" />
+                    <span className={styles.payName}>{m.label}</span>
+                    {m.discountPct > 0 && <span className={styles.payOff}>−{m.discountPct}%</span>}
+                    {total != null && <span className={`num ${styles.payTotal}`}>{formatMoney(total)}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {needsShipping && (
+            <section className={styles.summaryBlock}>
+              <h2 className={styles.summaryTitle}>Envío a domicilio</h2>
+              <div className={styles.shippingGrid}>
+                <div className={`field ${styles.span2}`}>
+                  <label className="field-label" htmlFor="street">Calle</label>
+                  <input id="street" className="input" value={shipping.street} onChange={(e) => setShipping({ ...shipping, street: e.target.value })} />
+                </div>
+                <div className="field">
+                  <label className="field-label" htmlFor="number">Número</label>
+                  <input id="number" className="input" value={shipping.number} onChange={(e) => setShipping({ ...shipping, number: e.target.value })} />
+                </div>
+                <div className="field">
+                  <label className="field-label" htmlFor="floor">Piso / depto (opcional)</label>
+                  <input id="floor" className="input" value={shipping.floor} onChange={(e) => setShipping({ ...shipping, floor: e.target.value })} />
+                </div>
+                <div className="field">
+                  <label className="field-label" htmlFor="city">Localidad</label>
+                  <input id="city" className="input" value={shipping.city} onChange={(e) => setShipping({ ...shipping, city: e.target.value })} />
+                </div>
+                <div className="field">
+                  <label className="field-label" htmlFor="zip">Código postal</label>
+                  <input id="zip" className="input" value={shipping.zip} onChange={(e) => setShipping({ ...shipping, zip: e.target.value })} />
+                </div>
+                <div className={`field ${styles.span2}`}>
+                  <label className="field-label" htmlFor="phone">Teléfono</label>
+                  <input id="phone" className="input" inputMode="tel" value={shipping.phone} onChange={(e) => setShipping({ ...shipping, phone: e.target.value })} />
+                </div>
+                <div className={`field ${styles.span2}`}>
+                  <label className="field-label" htmlFor="notes">Observaciones u horario (opcional)</label>
+                  <input id="notes" className="input" value={shipping.notes} onChange={(e) => setShipping({ ...shipping, notes: e.target.value })} />
+                </div>
+              </div>
+            </section>
+          )}
+
+          <section className={styles.totals}>
+            <dl className={styles.totalsList}>
+              <div><dt>Precio de lista</dt><dd className="num">{formatMoney(listTotal)}</dd></div>
+              {selectedMethod?.discountPct > 0 && (
+                <div className={styles.discountRow}>
+                  <dt>{selectedMethod.label} −{selectedMethod.discountPct}%</dt>
+                  <dd className="num">− {formatMoney(listTotal - itemsTotal)}</dd>
+                </div>
+              )}
+              {needsShipping && <div><dt>Envío</dt><dd className="num">{formatMoney(SHIPPING_COST)}</dd></div>}
+            </dl>
+            <div className={styles.grandTotal}>
+              <span>Total</span>
+              <span className="num">{itemsTotal != null ? formatMoney(itemsTotal + shippingCost) : '—'}</span>
+            </div>
+            {!selectedMethod && lines.length > 0 && <p className={styles.totalHint}>Elegí el medio de pago para ver el total.</p>}
+
+            <Notice kind={notice.kind || 'info'} onClose={notice.kind !== 'info' ? () => setNotice({ kind: '', text: '' }) : undefined}>
+              {notice.text}
+            </Notice>
+
+            <button className="btn btn-primary btn-lg btn-block" onClick={handleSubmit} disabled={!canSubmit}>
+              {sending ? 'Enviando…' : 'Enviar pedido a caja'}
             </button>
-          ))}
-        </div>
+            {missing.length > 0 && lines.length > 0 && (
+              <p className={styles.totalHint}>Falta: {missing.join(', ')}.</p>
+            )}
+          </section>
+        </aside>
       </div>
-
-      <div className={styles.field}>
-        <label className={styles.label}>Cliente</label>
-        <input
-          className={styles.input} placeholder="DNI/CUIT"
-          value={customer.docNumber} onChange={(e) => handleDocNumberChange(e.target.value)}
-        />
-        {lookupStatus && <p className={styles.lookupStatus}>{lookupStatus}</p>}
-        <input
-          className={styles.input} placeholder="Nombre y apellido"
-          value={customer.name} onChange={(e) => setCustomer({ ...customer, name: e.target.value })}
-        />
-      </div>
-
-      {needsShipping && (
-        <div className={styles.field}>
-          <label className={styles.label}>Datos de envío (obligatorio, costo ${SHIPPING_COST})</label>
-          <div className={styles.shippingGrid}>
-            <input className={styles.input} placeholder="Calle *" value={shipping.street} onChange={(e) => setShipping({ ...shipping, street: e.target.value })} />
-            <input className={styles.input} placeholder="Número *" value={shipping.number} onChange={(e) => setShipping({ ...shipping, number: e.target.value })} />
-            <input className={styles.input} placeholder="Piso / depto" value={shipping.floor} onChange={(e) => setShipping({ ...shipping, floor: e.target.value })} />
-            <input className={styles.input} placeholder="Localidad *" value={shipping.city} onChange={(e) => setShipping({ ...shipping, city: e.target.value })} />
-            <input className={styles.input} placeholder="Código postal *" value={shipping.zip} onChange={(e) => setShipping({ ...shipping, zip: e.target.value })} />
-            <input className={styles.input} placeholder="Teléfono *" value={shipping.phone} onChange={(e) => setShipping({ ...shipping, phone: e.target.value })} />
-            <input className={`${styles.input} ${styles.full}`} placeholder="Observaciones / horario" value={shipping.notes} onChange={(e) => setShipping({ ...shipping, notes: e.target.value })} />
-          </div>
-        </div>
-      )}
-
-      {status && <p className={styles.status}>{status}</p>}
-
-      <button className={styles.submitBtn} onClick={handleSubmit} disabled={!canSubmit}>
-        Enviar pedido a caja
-      </button>
     </div>
   );
 }

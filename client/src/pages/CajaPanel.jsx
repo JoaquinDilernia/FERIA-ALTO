@@ -2,24 +2,23 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiFetch } from '../lib/api.js';
 import OrderLines from '../components/OrderLines.jsx';
 import EntregasView from '../components/EntregasView.jsx';
-import { orderTotal, SHIPPING_COST } from '../lib/feriaLabels.js';
+import {
+  AppHeader, PaymentChip, OrderStatusChip, Notice, EmptyState,
+} from '../components/ui.jsx';
+import {
+  orderBreakdown, formatMoney, formatTime, formatDateTime, paymentMethodInfo, CONDITION_LABELS,
+} from '../lib/feriaLabels.js';
 import styles from './CajaPanel.module.css';
 
 const SEARCH_MIN_CHARS = 6;
 const REBAJA_LABELS = { 0: 'Normal', 1: 'Rebaja 1', 2: 'Rebaja 2' };
-
-function logout() {
-  localStorage.removeItem('feria_token');
-  localStorage.removeItem('feria_role');
-  window.location.reload();
-}
 
 function PedidosTab() {
   const [orders, setOrders] = useState([]);
   const [selected, setSelected] = useState(null);
   const [stockBySku, setStockBySku] = useState({});
   const [busy, setBusy] = useState('');
-  const [message, setMessage] = useState('');
+  const [notice, setNotice] = useState({ kind: '', text: '' });
 
   // Traemos pendientes Y errores: si un confirm falla, el backend deja el
   // pedido en 'error' y, si sólo miráramos 'pendiente', la venta desaparecería
@@ -59,29 +58,31 @@ function PedidosTab() {
 
   function openOrder(order) {
     setSelected(order);
-    setMessage('');
+    setNotice({ kind: '', text: '' });
     setStockBySku({});
     loadStock(order);
   }
 
-  async function runAction(key, request, successMessage = '') {
+  async function runAction(key, request, successText = '') {
     setBusy(key);
-    setMessage('');
+    setNotice({ kind: '', text: '' });
     try {
       const { order } = await request();
       setSelected(order);
       loadStock(order);
-      if (successMessage) setMessage(successMessage);
+      if (successText) setNotice({ kind: 'success', text: successText });
       loadOrders();
     } catch (err) {
-      setMessage(`Error: ${err.message}`);
+      setNotice({ kind: 'error', text: err.message });
     } finally {
       setBusy('');
     }
   }
 
   function removeLine(line) {
-    runAction(line.lineId, () => apiFetch(`/api/feria/orders/${selected.id}/lines/${line.lineId}`, { method: 'DELETE' }));
+    runAction(line.lineId,
+      () => apiFetch(`/api/feria/orders/${selected.id}/lines/${line.lineId}`, { method: 'DELETE' }),
+      `${line.modelo} eliminado del pedido.`);
   }
 
   function editLine(line, changes) {
@@ -91,20 +92,22 @@ function PedidosTab() {
   }
 
   function handleCancel() {
-    if (!window.confirm('¿Cancelar el pedido? Se libera todo el stock reservado.')) return;
+    if (!window.confirm(`¿Cancelar el pedido de ${selected.customer.name}? Se libera todo el stock reservado.`)) return;
     runAction('cancel', () => apiFetch(`/api/feria/orders/${selected.id}/cancel`, { method: 'POST' }), 'Pedido cancelado.');
   }
 
   async function handleConfirm() {
     if (!selected) return;
     setBusy('confirm');
-    setMessage('');
+    setNotice({ kind: '', text: '' });
     try {
       // La facturación automática quedó desactivada en el backend (el pedido
       // igual se crea y se confirma en Odoo), así que vamos directo al confirm.
       const { order } = await apiFetch(`/api/feria/orders/${selected.id}/confirm`, { method: 'POST' });
       setSelected(null);
-      setMessage(order.errorDetail ? `Confirmado con aviso: ${order.errorDetail}` : 'Pedido confirmado en Odoo.');
+      setNotice(order.errorDetail
+        ? { kind: 'error', text: `Venta de ${order.customer.name} confirmada, con un aviso: ${order.errorDetail}` }
+        : { kind: 'success', text: `Venta de ${order.customer.name} confirmada en Odoo.` });
       loadOrders();
     } catch (err) {
       // Releemos el pedido para quedarnos con el estado real ('error' + el
@@ -115,7 +118,7 @@ function PedidosTab() {
       } catch {
         setSelected(prev => (prev ? { ...prev, status: 'error', errorDetail: err.message } : prev));
       }
-      setMessage(`Error confirmando: ${err.message}`);
+      setNotice({ kind: 'error', text: `No se pudo confirmar: ${err.message}` });
       loadOrders();
     } finally {
       setBusy('');
@@ -123,69 +126,116 @@ function PedidosTab() {
   }
 
   const editable = selected && ['pendiente', 'error'].includes(selected.status);
+  const breakdown = selected ? orderBreakdown(selected) : null;
+  const method = selected ? paymentMethodInfo(selected.paymentMethod) : null;
 
   return (
-    <div className={styles.tabBody}>
-      <aside className={styles.list}>
-        <h2 className={styles.listTitle}>Pedidos pendientes ({orders.length})</h2>
-        {orders.map(order => (
-          <button
-            key={order.id}
-            className={[
-              styles.orderCard,
-              order.status === 'error' ? styles.orderCardError : '',
-              selected?.id === order.id ? styles.orderCardActive : '',
-            ].filter(Boolean).join(' ')}
-            onClick={() => openOrder(order)}
-          >
-            <strong>{order.customer.name}</strong>
-            <span>{order.sellerName}</span>
-            {order.status === 'error' && <span className={styles.errorTag}>Falló — reintentar</span>}
-          </button>
-        ))}
-        {orders.length === 0 && <p className={styles.empty}>No hay pedidos pendientes.</p>}
+    <div className={styles.pedidos}>
+      <aside className={styles.queue} aria-label="Pedidos por confirmar">
+        <h2 className={styles.queueTitle}>
+          Por confirmar <span className={`num ${styles.queueCount}`}>{orders.length}</span>
+        </h2>
+        {orders.length === 0 && <EmptyState title="No hay pedidos esperando">Los pedidos que carguen los vendedores aparecen acá.</EmptyState>}
+        <ul className={styles.queueList}>
+          {orders.map(order => (
+            <li key={order.id}>
+              <button
+                type="button"
+                className={[
+                  styles.ticket,
+                  order.status === 'error' ? styles.ticketError : '',
+                  selected?.id === order.id ? styles.ticketActive : '',
+                ].filter(Boolean).join(' ')}
+                onClick={() => openOrder(order)}
+              >
+                <span className={styles.ticketTop}>
+                  <strong className={styles.ticketName}>{order.customer.name}</strong>
+                  <span className="num">{formatMoney(orderBreakdown(order).total)}</span>
+                </span>
+                <span className={styles.ticketMeta}>
+                  {formatTime(order.createdAt)} · {order.sellerName} · {order.lines.filter(l => l.status !== 'eliminado').length} prod.
+                </span>
+                <span className={styles.ticketChips}>
+                  <PaymentChip method={order.paymentMethod} />
+                  {order.status === 'error' && <OrderStatusChip status="error" />}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
       </aside>
 
       <main className={styles.detail}>
-        {message && <p className={styles.message}>{message}</p>}
+        <Notice kind={notice.kind || 'info'} onClose={() => setNotice({ kind: '', text: '' })}>{notice.text}</Notice>
+
         {!selected ? (
-          <p className={styles.empty}>Seleccioná un pedido de la lista.</p>
+          <EmptyState title="Elegí un pedido de la lista">Vas a ver sus productos, el stock y el total a cobrar.</EmptyState>
         ) : (
           <>
-            <h2>{selected.customer.name}</h2>
-            <p className={styles.meta}>Vendedor: {selected.sellerName} · DNI/CUIT: {selected.customer.docNumber}</p>
-            {selected.status === 'cancelado' && <p className={styles.error}>Pedido cancelado.</p>}
-
-            <OrderLines
-              lines={selected.lines}
-              stockBySku={stockBySku}
-              disabled={!!busy}
-              onEdit={editable ? editLine : undefined}
-              onRemove={editable ? removeLine : undefined}
-            />
-
-            {selected.shipping && (
-              <p className={styles.meta}>
-                Envío (${SHIPPING_COST}): {selected.shipping.street} {selected.shipping.number} {selected.shipping.floor}
-                {' '}— {selected.shipping.city} ({selected.shipping.zip}) · Tel {selected.shipping.phone}
-                {selected.shipping.notes ? ` · ${selected.shipping.notes}` : ''}
-              </p>
-            )}
-            <p className={styles.total}>Total: ${orderTotal(selected).toFixed(0)}</p>
-            <p className={styles.meta}>Método de pago cargado: {selected.paymentMethod}</p>
+            <header className={styles.detailHead}>
+              <div>
+                <h2 className={styles.detailName}>{selected.customer.name}</h2>
+                <p className={styles.detailMeta}>
+                  DNI {selected.customer.docNumber} · Vendió {selected.sellerName} · {formatDateTime(selected.createdAt)}
+                </p>
+              </div>
+              <div className={styles.detailChips}>
+                <OrderStatusChip status={selected.status} large />
+                <PaymentChip method={selected.paymentMethod} large />
+              </div>
+            </header>
 
             {selected.status === 'error' && (
-              <p className={styles.error}>Error del intento anterior: {selected.errorDetail}</p>
+              <Notice kind="error">No se pudo confirmar en Odoo: {selected.errorDetail}</Notice>
             )}
 
-            {editable && (
-              <div className={styles.actionsRow}>
-                <button className={styles.confirmBtn} onClick={handleConfirm} disabled={!!busy}>
-                  {busy === 'confirm' ? 'Confirmando...' : (selected.status === 'error' ? 'Reintentar' : 'Confirmar venta')}
-                </button>
-                <button className={styles.cancelBtn} onClick={handleCancel} disabled={!!busy}>Cancelar pedido</button>
-              </div>
+            <section className={styles.linesCard}>
+              <OrderLines
+                lines={selected.lines}
+                stockBySku={stockBySku}
+                disabled={!!busy}
+                onEdit={editable ? editLine : undefined}
+                onRemove={editable ? removeLine : undefined}
+              />
+            </section>
+
+            {selected.shipping && (
+              <section className={styles.shipping}>
+                <p className={styles.shippingLabel}>Envío a domicilio</p>
+                <p className={styles.shippingAddress}>
+                  {selected.shipping.street} {selected.shipping.number}{selected.shipping.floor ? `, ${selected.shipping.floor}` : ''} — {selected.shipping.city} ({selected.shipping.zip})
+                </p>
+                <p className={styles.detailMeta}>
+                  Tel. {selected.shipping.phone}{selected.shipping.notes ? ` · ${selected.shipping.notes}` : ''}
+                </p>
+              </section>
             )}
+
+            <section className={styles.checkout}>
+              <dl className={styles.breakdown}>
+                <div><dt>Precio de lista</dt><dd className="num">{formatMoney(breakdown.list)}</dd></div>
+                {breakdown.discount > 0 && (
+                  <div className={styles.discount}>
+                    <dt>{method.label} −{method.discountPct}%</dt>
+                    <dd className="num">− {formatMoney(breakdown.discount)}</dd>
+                  </div>
+                )}
+                {breakdown.shipping > 0 && <div><dt>Envío</dt><dd className="num">{formatMoney(breakdown.shipping)}</dd></div>}
+              </dl>
+              <div className={styles.charge}>
+                <span>A cobrar <span className={styles.chargeMethod}>con {method.label}</span></span>
+                <span className="num">{formatMoney(breakdown.total)}</span>
+              </div>
+
+              {editable && (
+                <div className={styles.actions}>
+                  <button className="btn btn-danger btn-lg" onClick={handleCancel} disabled={!!busy}>Cancelar pedido</button>
+                  <button className={`btn btn-primary btn-lg ${styles.confirmBtn}`} onClick={handleConfirm} disabled={!!busy}>
+                    {busy === 'confirm' ? 'Confirmando en Odoo…' : (selected.status === 'error' ? 'Reintentar confirmación' : 'Cobrado, confirmar venta')}
+                  </button>
+                </div>
+              )}
+            </section>
           </>
         )}
       </main>
@@ -197,6 +247,7 @@ function RebajasTab() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [saving, setSaving] = useState('');
+  const [notice, setNotice] = useState({ kind: '', text: '' });
   const searchTimeout = useRef(null);
 
   function handleQueryChange(value) {
@@ -215,53 +266,58 @@ function RebajasTab() {
 
   async function setRebaja(sku, condition, level) {
     setSaving(sku + condition);
+    setNotice({ kind: '', text: '' });
     try {
       const { product } = await apiFetch(`/api/feria/products/${sku}/rebaja`, {
         method: 'PATCH', body: JSON.stringify({ condition, level }),
       });
-      setResults(prev => prev.map(p => p.sku === sku ? product : p));
+      setResults(prev => prev.map(p => p.sku === sku ? { ...p, condiciones: product.condiciones } : p));
+      setNotice({ kind: 'success', text: `${product.modelo} (${CONDITION_LABELS[condition]}): ${REBAJA_LABELS[level]} activa, ${formatMoney(product.condiciones[condition].precioTabla)}.` });
     } catch (err) {
-      alert(`Error: ${err.message}`);
+      setNotice({ kind: 'error', text: err.message });
     } finally {
       setSaving('');
     }
   }
 
   return (
-    <div className={styles.rebajasBody}>
-      <div className={styles.field}>
-        <label className={styles.label}>Buscar SKU o modelo (mínimo 6 caracteres)</label>
-        <input
-          className={styles.input}
-          value={query}
-          onChange={(e) => handleQueryChange(e.target.value)}
-          placeholder="Ej: BCT037MA"
-        />
+    <div className={styles.rebajas}>
+      <div className="field">
+        <label className={styles.rebajasLabel} htmlFor="rebaja-search">Cambiar la rebaja de un producto</label>
+        <input id="rebaja-search" className={`input ${styles.rebajasSearch}`} value={query}
+          onChange={(e) => handleQueryChange(e.target.value)} placeholder="SKU o modelo, mínimo 6 caracteres" autoComplete="off" />
       </div>
+      <Notice kind={notice.kind || 'info'} onClose={() => setNotice({ kind: '', text: '' })}>{notice.text}</Notice>
       {results.map(p => (
-        <div key={p.sku} className={styles.rebajaCard}>
-          <strong>{p.modelo} ({p.sku})</strong>
-          {['falla', 'discontinuo'].map(condition => (
-            p.condiciones[condition].disponible && (
-              <div key={condition} className={styles.rebajaRow}>
-                <span className={styles.rebajaLabel}>{condition} — ${p.condiciones[condition].precioTabla}</span>
-                <div className={styles.rebajaButtons}>
-                  {[0, 1, 2].map(level => (
-                    <button
-                      key={level}
-                      type="button"
-                      disabled={saving === p.sku + condition}
-                      className={`${styles.rebajaBtn} ${p.condiciones[condition].rebajaActiva === level ? styles.rebajaBtnActive : ''}`}
-                      onClick={() => setRebaja(p.sku, condition, level)}
-                    >
-                      {REBAJA_LABELS[level]}
-                    </button>
-                  ))}
-                </div>
+        <article key={p.sku} className={styles.rebajaCard}>
+          <div>
+            <h3 className={styles.rebajaName}>{p.modelo}</h3>
+            <p className={styles.detailMeta}>{p.sku}{p.color ? ` · ${p.color.trim()}` : ''}</p>
+          </div>
+          {['falla', 'discontinuo'].map(condition => p.condiciones[condition].disponible && (
+            <div key={condition} className={styles.rebajaRow}>
+              <div>
+                <p className={styles.rebajaCondition}>{CONDITION_LABELS[condition]}</p>
+                <p className={`num ${styles.rebajaPrice}`}>{formatMoney(p.condiciones[condition].precioTabla)}</p>
               </div>
-            )
+              <div className={styles.levels} role="radiogroup" aria-label={`Rebaja ${CONDITION_LABELS[condition]}`}>
+                {[0, 1, 2].map(level => (
+                  <button
+                    key={level}
+                    type="button"
+                    role="radio"
+                    aria-checked={p.condiciones[condition].rebajaActiva === level}
+                    disabled={saving === p.sku + condition}
+                    className={p.condiciones[condition].rebajaActiva === level ? styles.levelActive : ''}
+                    onClick={() => setRebaja(p.sku, condition, level)}
+                  >
+                    {REBAJA_LABELS[level]}
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
-        </div>
+        </article>
       ))}
     </div>
   );
@@ -270,22 +326,16 @@ function RebajasTab() {
 const TABS = [
   { value: 'pedidos', label: 'Pedidos' },
   { value: 'entregas', label: 'Entregas' },
-  { value: 'rebajas', label: 'Rebajas por SKU' },
+  { value: 'rebajas', label: 'Rebajas' },
 ];
 
 export default function CajaPanel() {
+  const user = JSON.parse(localStorage.getItem('feria_user') || '{}');
   const [tab, setTab] = useState('pedidos');
 
   return (
     <div className={styles.page}>
-      <nav className={styles.tabs}>
-        {TABS.map(t => (
-          <button key={t.value} className={`${styles.tabBtn} ${tab === t.value ? styles.tabBtnActive : ''}`} onClick={() => setTab(t.value)}>
-            {t.label}
-          </button>
-        ))}
-        <button type="button" className={styles.logoutBtn} onClick={logout}>Salir</button>
-      </nav>
+      <AppHeader panel="caja" userName={user.name} tabs={TABS} activeTab={tab} onTabChange={setTab} />
       {tab === 'pedidos' && <PedidosTab />}
       {/* Caja arranca en "Retiros en feria" (lo que el cliente viene a buscar),
           pero puede ver y marcar todo, igual que Logística. */}

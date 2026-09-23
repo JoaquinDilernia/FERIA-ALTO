@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { apiFetch } from '../lib/api.js';
 import { RESERVING_STATUSES, formatDateTime } from '../lib/feriaLabels.js';
 import OrderLines from './OrderLines.jsx';
+import { PaymentChip, Notice, EmptyState } from './ui.jsx';
 import styles from './EntregasView.module.css';
 
 const FILTERS = [
@@ -17,12 +18,24 @@ const FILTERS = [
   { value: 'envio', label: 'Envío a domicilio', match: l => l.delivery === 'envio' },
 ];
 
+const EMPTY_TEXT = {
+  retiros_feria: 'Nadie tiene que pasar a retirar por la feria.',
+  ahora: 'No quedó nada de “Se lleva ahora” sin entregar.',
+  mandar_feria: 'No hay nada para mandar de Rolón a la feria.',
+  retiro_rolon: 'No hay retiros pendientes en Rolón.',
+  envio: 'No hay envíos a domicilio pendientes.',
+};
+
+function pendingLines(order, filter) {
+  return order.lines.filter(l => RESERVING_STATUSES.includes(l.status) && filter.match(l));
+}
+
 export default function EntregasView({ initialFilter }) {
   const [orders, setOrders] = useState([]);
   const [filter, setFilter] = useState(initialFilter);
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState('');
-  const [message, setMessage] = useState('');
+  const [notice, setNotice] = useState({ kind: '', text: '' });
 
   const load = useCallback(async () => {
     try {
@@ -39,15 +52,15 @@ export default function EntregasView({ initialFilter }) {
     return () => clearInterval(interval);
   }, [load]);
 
-  async function run(order, line, path, options, warning = '') {
-    setBusy(`${order.id}:${line.lineId}`);
-    setMessage('');
+  async function run(order, line, path, options, successText) {
+    setBusy(order.id);
+    setNotice({ kind: '', text: '' });
     try {
       await apiFetch(`/api/feria/orders/${order.id}/lines/${line.lineId}${path}`, options);
-      if (warning) setMessage(warning);
+      setNotice({ kind: 'success', text: successText });
       await load();
     } catch (err) {
-      setMessage(`Error: ${err.message}`);
+      setNotice({ kind: 'error', text: err.message });
     } finally {
       setBusy('');
     }
@@ -58,57 +71,91 @@ export default function EntregasView({ initialFilter }) {
     // tocan solas: hay que ajustarlas a mano en Odoo.
     const touchesShipping = changes.delivery && (changes.delivery === 'envio' || line.delivery === 'envio');
     run(order, line, '', { method: 'PATCH', body: JSON.stringify(changes) },
-      touchesShipping ? 'Ojo: el cargo de envío y la dirección en Odoo no se actualizan solos — ajustalos en Odoo.' : '');
+      touchesShipping
+        ? `${line.modelo} actualizado. Ojo: el cargo de envío y la dirección en Odoo no se actualizan solos, ajustalos en Odoo.`
+        : `${line.modelo} actualizado.`);
   }
 
   const current = FILTERS.find(f => f.value === filter);
   const q = search.trim().toLowerCase();
+  const matchesSearch = o => !q || o.customer.name.toLowerCase().includes(q) || o.customer.docNumber.includes(q);
+  const counts = Object.fromEntries(FILTERS.map(f => [
+    f.value, orders.filter(matchesSearch).reduce((n, o) => n + pendingLines(o, f).length, 0),
+  ]));
   const visible = orders
-    .filter(o => !q || o.customer.name.toLowerCase().includes(q) || o.customer.docNumber.includes(q))
-    .map(o => ({ order: o, lines: o.lines.filter(l => RESERVING_STATUSES.includes(l.status) && current.match(l)) }))
+    .filter(matchesSearch)
+    .map(o => ({ order: o, lines: pendingLines(o, current) }))
     .filter(x => x.lines.length > 0);
 
   return (
     <div className={styles.body}>
       <div className={styles.toolbar}>
-        {FILTERS.map(f => (
-          <button
-            key={f.value} type="button"
-            className={`${styles.filterBtn} ${filter === f.value ? styles.filterBtnActive : ''}`}
-            onClick={() => setFilter(f.value)}
-          >
-            {f.label}
-          </button>
-        ))}
-        <input className={styles.search} placeholder="Buscar por nombre o DNI" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <div className={styles.filters} role="tablist" aria-label="Tipo de entrega">
+          {FILTERS.map(f => (
+            <button
+              key={f.value}
+              type="button"
+              role="tab"
+              aria-selected={filter === f.value}
+              className={`${styles.filter} ${filter === f.value ? styles.filterActive : ''}`}
+              onClick={() => setFilter(f.value)}
+            >
+              {f.label}
+              <span className={`num ${styles.filterCount} ${counts[f.value] ? styles.filterCountOn : ''}`}>{counts[f.value]}</span>
+            </button>
+          ))}
+        </div>
+        <input
+          className={`input ${styles.search}`}
+          placeholder="Buscar por nombre o DNI"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          aria-label="Buscar cliente"
+        />
       </div>
 
-      {message && <p className={styles.message}>{message}</p>}
-      {visible.length === 0 && <p className={styles.empty}>No hay nada pendiente acá.</p>}
+      <Notice kind={notice.kind || 'info'} onClose={() => setNotice({ kind: '', text: '' })}>{notice.text}</Notice>
 
-      {visible.map(({ order, lines }) => (
-        <div key={order.id} className={styles.card}>
-          <div className={styles.cardHeader}>
-            <strong>{order.customer.name}</strong>
-            <span className={styles.meta}>{formatDateTime(order.createdAt)}</span>
-          </div>
-          <p className={styles.meta}>DNI/CUIT: {order.customer.docNumber} · Vendedor: {order.sellerName} · Pedido Odoo #{order.odooOrderId}</p>
-          {order.shipping && lines.some(l => l.delivery === 'envio') && (
-            <p className={styles.meta}>
-              Envío: {order.shipping.street} {order.shipping.number} {order.shipping.floor} — {order.shipping.city} ({order.shipping.zip})
-              · Tel {order.shipping.phone}{order.shipping.notes ? ` · ${order.shipping.notes}` : ''}
-            </p>
-          )}
-          {order.errorDetail && <p className={styles.error}>{order.errorDetail}</p>}
-          <OrderLines
-            lines={lines}
-            disabled={busy.startsWith(`${order.id}:`)}
-            onSendToFeria={(l) => run(order, l, '/sent-to-feria', { method: 'POST' })}
-            onDeliver={(l) => run(order, l, '/deliver', { method: 'POST' })}
-            onEdit={(l, changes) => editLine(order, l, changes)}
-          />
-        </div>
-      ))}
+      {visible.length === 0 && <EmptyState title="Todo al día">{EMPTY_TEXT[filter]}</EmptyState>}
+
+      <div className={styles.orders}>
+        {visible.map(({ order, lines }) => (
+          <article key={order.id} className={styles.order}>
+            <header className={styles.orderHead}>
+              <div>
+                <h3 className={styles.customer}>{order.customer.name}</h3>
+                <p className={styles.meta}>
+                  DNI {order.customer.docNumber} · Vendió {order.sellerName} · {formatDateTime(order.createdAt)}
+                  {order.odooOrderId ? ` · Odoo #${order.odooOrderId}` : ''}
+                </p>
+              </div>
+              <PaymentChip method={order.paymentMethod} />
+            </header>
+
+            {order.shipping && lines.some(l => l.delivery === 'envio') && (
+              <div className={styles.shipping}>
+                <p className={styles.shippingLabel}>Entregar en</p>
+                <p className={styles.shippingAddress}>
+                  {order.shipping.street} {order.shipping.number}{order.shipping.floor ? `, ${order.shipping.floor}` : ''} — {order.shipping.city} ({order.shipping.zip})
+                </p>
+                <p className={styles.meta}>
+                  Tel. {order.shipping.phone}{order.shipping.notes ? ` · ${order.shipping.notes}` : ''}
+                </p>
+              </div>
+            )}
+
+            {order.errorDetail && <Notice kind="error">{order.errorDetail}</Notice>}
+
+            <OrderLines
+              lines={lines}
+              disabled={busy === order.id}
+              onSendToFeria={(l) => run(order, l, '/sent-to-feria', { method: 'POST' }, `${l.modelo} marcado como enviado a la feria.`)}
+              onDeliver={(l) => run(order, l, '/deliver', { method: 'POST' }, `${l.modelo} entregado a ${order.customer.name}.`)}
+              onEdit={(l, changes) => editLine(order, l, changes)}
+            />
+          </article>
+        ))}
+      </div>
     </div>
   );
 }

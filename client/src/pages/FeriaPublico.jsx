@@ -1,10 +1,12 @@
 import { useState, useRef } from 'react';
 import { apiFetch } from '../lib/api.js';
+import { CONDITION_LABELS, formatMoney } from '../lib/feriaLabels.js';
+import logo from '../assets/logo-altorancho.png';
 import styles from './FeriaPublico.module.css';
-import logo from '../assets/ALTORANCHO.png';
 
 const SEARCH_MIN_CHARS = 6;
-const CONDITION_LABELS = { falla: 'Falla', discontinuo: 'Discontinuo' };
+// Mismas claves que PUBLIC_PRICE_OPTIONS del backend.
+const PRICE_TONES = { transferencia: 'transfer', efectivo: 'cash', mercadopago: 'mp' };
 
 export default function FeriaPublico() {
   const [query, setQuery] = useState('');
@@ -33,45 +35,54 @@ export default function FeriaPublico() {
     }, 300);
   }
 
+  const typed = query.trim().length;
+
   return (
     <div className={styles.page}>
-      <img src={logo} alt="Alto Rancho" className={styles.logo} />
-      <h1 className={styles.title}>Feria Outlet — Consultá tu precio</h1>
-      <input
-        className={styles.input}
-        value={query}
-        onChange={(e) => handleQueryChange(e.target.value)}
-        placeholder="Buscá por SKU o modelo (mínimo 6 caracteres)"
-        autoFocus
-      />
-      {searching && <p className={styles.hint}>Buscando...</p>}
-      {!searching && query.trim().length >= SEARCH_MIN_CHARS && results.length === 0 && (
-        <p className={styles.hint}>No encontramos ningún producto para "{query}".</p>
-      )}
+      <header className={styles.hero}>
+        <img src={logo} alt="Alto Rancho" className={styles.logo} />
+        <h1 className={styles.title}>feria outlet.</h1>
+        <p className={styles.subtitle}>Buscá el producto y mirá su precio según cómo pagues.</p>
+        <label className="sr-only" htmlFor="q">Buscar producto</label>
+        <input
+          id="q"
+          className={styles.search}
+          value={query}
+          onChange={(e) => handleQueryChange(e.target.value)}
+          placeholder="Código de la etiqueta o nombre del producto"
+          autoComplete="off"
+          autoFocus
+        />
+        <p className={styles.hint}>
+          {typed > 0 && typed < SEARCH_MIN_CHARS && `Escribí ${SEARCH_MIN_CHARS - typed} caracteres más para buscar.`}
+          {searching && 'Buscando…'}
+          {!searching && typed >= SEARCH_MIN_CHARS && results.length === 0 && `No encontramos productos para “${query}”.`}
+        </p>
+      </header>
 
-      <div className={styles.results}>
+      <main className={styles.results}>
         {results.map(p => (
-          <div key={p.sku} className={styles.card}>
+          <article key={p.sku} className={styles.card}>
             <h2 className={styles.cardTitle}>{p.modelo}</h2>
-            <p className={styles.cardSku}>SKU: {p.sku}{p.color ? ` · ${p.color}` : ''}</p>
-            {Object.entries(p.precios).map(([condition, precios]) => (
-              <div key={condition} className={styles.conditionBlock}>
-                <h3 className={styles.conditionTitle}>{CONDITION_LABELS[condition]}</h3>
-                <table className={styles.priceTable}>
-                  <tbody>
-                    {Object.entries(precios).map(([method, info]) => (
-                      <tr key={method}>
-                        <td>{info.label}</td>
-                        <td className={styles.price}>${info.precio}</td>
-                      </tr>
+            <p className={styles.cardSku}>{p.sku}{p.color ? ` · ${p.color.trim()}` : ''}</p>
+            <div className={styles.conditions}>
+              {Object.entries(p.precios).map(([condition, precios]) => (
+                <section key={condition} className={styles.condition}>
+                  <h3 className={styles.conditionTitle}>{CONDITION_LABELS[condition]}</h3>
+                  <ul className={styles.prices}>
+                    {Object.entries(precios).map(([key, info]) => (
+                      <li key={key} className={`${styles.price} ${styles[`tone-${PRICE_TONES[key]}`] ?? ''}`}>
+                        <span className={styles.priceLabel}>{info.label}</span>
+                        <span className={`num ${styles.priceValue}`}>{formatMoney(info.precio)}</span>
+                      </li>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            ))}
-          </div>
+                  </ul>
+                </section>
+              ))}
+            </div>
+          </article>
         ))}
-      </div>
+      </main>
     </div>
   );
 }
