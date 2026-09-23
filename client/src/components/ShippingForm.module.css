@@ -1,0 +1,18 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-5);
+  border-radius: var(--r-lg);
+  border: 1.5px solid var(--pay-mp);
+  background: var(--paper);
+}
+.title { font-weight: 600; font-size: var(--fs-lg); }
+.hint { color: var(--ink-2); font-size: var(--fs-sm); }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-3); }
+.span2 { grid-column: 1 / -1; }
+.actions { display: flex; justify-content: flex-end; gap: var(--s-2); }
+
+@media (max-width: 600px) {
+  .grid { grid-template-columns: 1fr; }
+}

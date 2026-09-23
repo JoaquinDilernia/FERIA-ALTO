@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiFetch } from '../lib/api.js';
 import OrderLines from '../components/OrderLines.jsx';
 import EntregasView from '../components/EntregasView.jsx';
+import ShippingForm from '../components/ShippingForm.jsx';
 import {
-  AppHeader, PaymentChip, OrderStatusChip, Notice, EmptyState,
+  AppHeader, PaymentChip, OrderStatusChip, OrderNumbers, Notice, EmptyState,
 } from '../components/ui.jsx';
 import {
   orderBreakdown, formatMoney, formatTime, formatDateTime, paymentMethodInfo, CONDITION_LABELS,
@@ -19,6 +20,9 @@ function PedidosTab() {
   const [stockBySku, setStockBySku] = useState({});
   const [busy, setBusy] = useState('');
   const [notice, setNotice] = useState({ kind: '', text: '' });
+  // null: mostrando la dirección. {}: editándola. { line, changes }: cargándola
+  // para pasar esa línea a envío a domicilio.
+  const [shippingEdit, setShippingEdit] = useState(null);
 
   // Traemos pendientes Y errores: si un confirm falla, el backend deja el
   // pedido en 'error' y, si sólo miráramos 'pendiente', la venta desaparecería
@@ -60,6 +64,7 @@ function PedidosTab() {
     setSelected(order);
     setNotice({ kind: '', text: '' });
     setStockBySku({});
+    setShippingEdit(null);
     loadStock(order);
   }
 
@@ -86,9 +91,36 @@ function PedidosTab() {
   }
 
   function editLine(line, changes) {
+    // Pasar a domicilio un pedido sin dirección: primero se carga la
+    // dirección y recién después se cambia la línea.
+    if (changes.delivery === 'envio' && !selected.shipping) {
+      setShippingEdit({ line, changes });
+      return;
+    }
     runAction(line.lineId, () => apiFetch(`/api/feria/orders/${selected.id}/lines/${line.lineId}`, {
       method: 'PATCH', body: JSON.stringify(changes),
     }));
+  }
+
+  async function saveShipping(shipping) {
+    setBusy('shipping');
+    try {
+      let { order } = await apiFetch(`/api/feria/orders/${selected.id}/shipping`, {
+        method: 'PATCH', body: JSON.stringify(shipping),
+      });
+      const pending = shippingEdit?.line;
+      if (pending) {
+        ({ order } = await apiFetch(`/api/feria/orders/${selected.id}/lines/${pending.lineId}`, {
+          method: 'PATCH', body: JSON.stringify(shippingEdit.changes),
+        }));
+      }
+      setSelected(order);
+      setShippingEdit(null);
+      setNotice({ kind: 'success', text: pending ? `${pending.modelo} pasa a envío a domicilio.` : 'Dirección de envío guardada.' });
+      loadOrders();
+    } finally {
+      setBusy('');
+    }
   }
 
   function handleCancel() {
@@ -105,9 +137,10 @@ function PedidosTab() {
       // igual se crea y se confirma en Odoo), así que vamos directo al confirm.
       const { order } = await apiFetch(`/api/feria/orders/${selected.id}/confirm`, { method: 'POST' });
       setSelected(null);
+      const numbers = `${order.number ?? ''}${order.odooOrderName ? ` (Odoo ${order.odooOrderName})` : ''}`;
       setNotice(order.errorDetail
-        ? { kind: 'error', text: `Venta de ${order.customer.name} confirmada, con un aviso: ${order.errorDetail}` }
-        : { kind: 'success', text: `Venta de ${order.customer.name} confirmada en Odoo.` });
+        ? { kind: 'error', text: `Venta ${numbers} de ${order.customer.name} confirmada, con un aviso: ${order.errorDetail}` }
+        : { kind: 'success', text: `Venta ${numbers} de ${order.customer.name} confirmada en Odoo.` });
       loadOrders();
     } catch (err) {
       // Releemos el pedido para quedarnos con el estado real ('error' + el
@@ -153,7 +186,7 @@ function PedidosTab() {
                   <span className="num">{formatMoney(orderBreakdown(order).total)}</span>
                 </span>
                 <span className={styles.ticketMeta}>
-                  {formatTime(order.createdAt)} · {order.sellerName} · {order.lines.filter(l => l.status !== 'eliminado').length} prod.
+                  {order.number ?? ''} · {formatTime(order.createdAt)} · {order.sellerName} · {order.lines.filter(l => l.status !== 'eliminado').length} prod.
                 </span>
                 <span className={styles.ticketChips}>
                   <PaymentChip method={order.paymentMethod} />
@@ -174,6 +207,7 @@ function PedidosTab() {
           <>
             <header className={styles.detailHead}>
               <div>
+                <OrderNumbers order={selected} large />
                 <h2 className={styles.detailName}>{selected.customer.name}</h2>
                 <p className={styles.detailMeta}>
                   DNI {selected.customer.docNumber}{selected.customer.phone ? ` · Tel. ${selected.customer.phone}` : ''} · Vendió {selected.sellerName} · {formatDateTime(selected.createdAt)}
@@ -199,15 +233,34 @@ function PedidosTab() {
               />
             </section>
 
-            {selected.shipping && (
+            {shippingEdit ? (
+              <ShippingForm
+                initial={selected.shipping}
+                defaultPhone={selected.customer.phone}
+                title={shippingEdit.line ? `A dónde se manda ${shippingEdit.line.modelo}` : 'Dirección de envío'}
+                hint={selected.odooOrderId
+                  ? 'El pedido ya está en Odoo: esta dirección la usa Logística; en Odoo corregila a mano.'
+                  : 'Se carga en Odoo al confirmar la venta.'}
+                saving={busy === 'shipping'}
+                onSave={saveShipping}
+                onCancel={() => setShippingEdit(null)}
+              />
+            ) : selected.shipping && (
               <section className={styles.shipping}>
-                <p className={styles.shippingLabel}>Envío a domicilio</p>
-                <p className={styles.shippingAddress}>
-                  {selected.shipping.street} {selected.shipping.number}{selected.shipping.floor ? `, ${selected.shipping.floor}` : ''} — {selected.shipping.city} ({selected.shipping.zip})
-                </p>
-                <p className={styles.detailMeta}>
-                  Tel. {selected.shipping.phone}{selected.shipping.notes ? ` · ${selected.shipping.notes}` : ''}
-                </p>
+                <div className={styles.shippingText}>
+                  <p className={styles.shippingLabel}>Envío a domicilio</p>
+                  <p className={styles.shippingAddress}>
+                    {selected.shipping.street} {selected.shipping.number}{selected.shipping.floor ? `, ${selected.shipping.floor}` : ''} — {selected.shipping.city} ({selected.shipping.zip})
+                  </p>
+                  <p className={styles.detailMeta}>
+                    Tel. {selected.shipping.phone}{selected.shipping.notes ? ` · ${selected.shipping.notes}` : ''}
+                  </p>
+                </div>
+                {selected.status !== 'cancelado' && (
+                  <button type="button" className="btn btn-secondary btn-sm" disabled={!!busy} onClick={() => setShippingEdit({})}>
+                    Editar dirección
+                  </button>
+                )}
               </section>
             )}
 

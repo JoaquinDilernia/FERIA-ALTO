@@ -65,6 +65,19 @@ export function PaymentChip({ method, large }) {
   );
 }
 
+// Número interno (F-0012) y, una vez confirmado, el del pedido en Odoo.
+// Los pedidos viejos sin número muestran el comienzo de su id.
+export function OrderNumbers({ order, large }) {
+  return (
+    <span className={styles.orderNumbers}>
+      <span className={`${styles.orderNumber} ${large ? styles.orderNumberLg : ''}`}>
+        {order.number ?? `#${order.id.slice(0, 6)}`}
+      </span>
+      {order.odooOrderName && <Chip tone="neutral">Odoo {order.odooOrderName}</Chip>}
+    </span>
+  );
+}
+
 export function Notice({ kind = 'info', children, onClose }) {
   if (!children) return null;
   return (

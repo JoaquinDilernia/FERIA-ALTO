@@ -178,11 +178,11 @@ export default function VendedorPanel() {
         });
       }
 
-      await apiFetch('/api/feria/orders', {
+      const { order } = await apiFetch('/api/feria/orders', {
         method: 'POST',
         body: JSON.stringify({ customer, paymentMethod, lines: freshLines, ...(needsShipping ? { shipping: effectiveShipping } : {}) }),
       });
-      setNotice({ kind: 'success', text: `Pedido de ${customer.name} enviado a caja.` });
+      setNotice({ kind: 'success', text: `Pedido ${order.number} de ${customer.name} enviado a caja. Decile al cliente que pase con ese número.` });
       setLines([]);
       setQuery('');
       setResults([]);

@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { apiFetch } from '../lib/api.js';
 import { RESERVING_STATUSES, formatDateTime } from '../lib/feriaLabels.js';
 import OrderLines from './OrderLines.jsx';
-import { PaymentChip, Notice, EmptyState } from './ui.jsx';
+import { PaymentChip, OrderNumbers, Notice, EmptyState } from './ui.jsx';
+import ShippingForm from './ShippingForm.jsx';
 import styles from './EntregasView.module.css';
 
 const FILTERS = [
@@ -36,6 +37,9 @@ export default function EntregasView({ initialFilter }) {
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState('');
   const [notice, setNotice] = useState({ kind: '', text: '' });
+  // { orderId, line?, changes? }: cargando/corrigiendo la dirección de un pedido
+  // (con line, para pasar esa línea a envío a domicilio después).
+  const [shippingEdit, setShippingEdit] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -66,7 +70,35 @@ export default function EntregasView({ initialFilter }) {
     }
   }
 
+  async function saveShipping(order, shipping) {
+    setBusy(order.id);
+    try {
+      await apiFetch(`/api/feria/orders/${order.id}/shipping`, { method: 'PATCH', body: JSON.stringify(shipping) });
+      const pending = shippingEdit?.line;
+      if (pending) {
+        await apiFetch(`/api/feria/orders/${order.id}/lines/${pending.lineId}`, {
+          method: 'PATCH', body: JSON.stringify(shippingEdit.changes),
+        });
+      }
+      setShippingEdit(null);
+      setNotice({
+        kind: 'success',
+        text: pending
+          ? `${pending.modelo} pasa a envío a domicilio. Ojo: en Odoo agregá el cargo de envío y la dirección a mano.`
+          : 'Dirección de envío guardada. Si el pedido ya está en Odoo, corregila también allá.',
+      });
+      await load();
+    } finally {
+      setBusy('');
+    }
+  }
+
   function editLine(order, line, changes) {
+    // Pasar a domicilio sin dirección: primero se carga la dirección.
+    if (changes.delivery === 'envio' && !order.shipping) {
+      setShippingEdit({ orderId: order.id, line, changes });
+      return;
+    }
     // Después de confirmar, la línea de envío y la dirección en Odoo no se
     // tocan solas: hay que ajustarlas a mano en Odoo.
     const touchesShipping = changes.delivery && (changes.delivery === 'envio' || line.delivery === 'envio');
@@ -123,6 +155,7 @@ export default function EntregasView({ initialFilter }) {
           <article key={order.id} className={styles.order}>
             <header className={styles.orderHead}>
               <div>
+                <OrderNumbers order={order} />
                 <h3 className={styles.customer}>{order.customer.name}</h3>
                 <p className={styles.meta}>
                   DNI {order.customer.docNumber}{order.customer.phone ? ` · Tel. ${order.customer.phone}` : ''} · Vendió {order.sellerName} · {formatDateTime(order.createdAt)}
@@ -132,8 +165,28 @@ export default function EntregasView({ initialFilter }) {
               <PaymentChip method={order.paymentMethod} />
             </header>
 
-            {order.shipping && lines.some(l => l.delivery === 'envio') && (
+            {shippingEdit?.orderId === order.id && (
+              <ShippingForm
+                initial={order.shipping}
+                defaultPhone={order.customer.phone}
+                title={shippingEdit.line ? `A dónde se manda ${shippingEdit.line.modelo}` : 'Dirección de envío'}
+                hint="Logística usa esta dirección. En Odoo corregila a mano si el pedido ya está confirmado."
+                saving={busy === order.id}
+                onSave={(shipping) => saveShipping(order, shipping)}
+                onCancel={() => setShippingEdit(null)}
+              />
+            )}
+
+            {order.shipping && shippingEdit?.orderId !== order.id && lines.some(l => l.delivery === 'envio') && (
               <div className={styles.shipping}>
+                <button
+                  type="button"
+                  className={`btn btn-secondary btn-sm ${styles.shippingEdit}`}
+                  disabled={busy === order.id}
+                  onClick={() => setShippingEdit({ orderId: order.id })}
+                >
+                  Editar dirección
+                </button>
                 <p className={styles.shippingLabel}>Entregar en</p>
                 <p className={styles.shippingAddress}>
                   {order.shipping.street} {order.shipping.number}{order.shipping.floor ? `, ${order.shipping.floor}` : ''} — {order.shipping.city} ({order.shipping.zip})

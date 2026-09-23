@@ -52,8 +52,10 @@ Antes del primer uso real:
   `Reportes/backend` para cargar `feria_products` (repetir cada vez que el
   negocio actualice el Excel de precios — no pisa las rebajas ya activadas
   a mano).
-- Borrar el vendedor de prueba `vendedor-prueba` (PIN 9090) de
-  `feria_sellers`.
+- Borrar los usuarios de prueba (los que tienen `test: true`) de
+  `feria_sellers` y `feria_admins`.
+- Borrar el documento `feria_counters/orders` para que la numeración de
+  pedidos arranque en F-0001 el día de la feria.
 - El stock sale de Odoo en vivo (almacén Feria: `FER/Stock/exhibicion` y
   `FER/Stock/Rolon`); la columna Stock del Excel ya no se usa. Nadie debe
   sacar stock del almacén Feria por fuera de la app.

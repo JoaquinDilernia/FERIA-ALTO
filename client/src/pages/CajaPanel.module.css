@@ -152,3 +152,5 @@
   .confirmBtn { min-width: 0; }
   .rebajaRow { flex-direction: column; align-items: flex-start; }
 }
+.shipping { display: flex; justify-content: space-between; align-items: center; gap: var(--s-4); }
+.shippingText { min-width: 0; }
