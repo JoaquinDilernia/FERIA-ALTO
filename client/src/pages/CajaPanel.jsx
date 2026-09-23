@@ -6,6 +6,7 @@ import EntregasView from '../components/EntregasView.jsx';
 import ShippingForm from '../components/ShippingForm.jsx';
 import AddProductSearch from '../components/AddProductSearch.jsx';
 import HistoryView from '../components/HistoryView.jsx';
+import StatsView from '../components/StatsView.jsx';
 import {
   AppHeader, PaymentChip, OrderStatusChip, OrderNumbers, Notice, EmptyState,
 } from '../components/ui.jsx';
@@ -411,6 +412,7 @@ const TABS = [
   { value: 'pedidos', label: 'Pedidos' },
   { value: 'entregas', label: 'Entregas' },
   { value: 'historial', label: 'Historial' },
+  { value: 'estadisticas', label: 'Estadísticas' },
   { value: 'rebajas', label: 'Rebajas' },
 ];
 
@@ -426,6 +428,7 @@ export default function CajaPanel() {
           pero puede ver y marcar todo, igual que Logística. */}
       {tab === 'entregas' && <EntregasView initialFilter="retiros_feria" />}
       {tab === 'historial' && <HistoryView />}
+      {tab === 'estadisticas' && <StatsView />}
       {tab === 'rebajas' && <RebajasTab />}
     </div>
   );
