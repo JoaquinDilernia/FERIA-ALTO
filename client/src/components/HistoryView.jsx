@@ -47,6 +47,22 @@ export default function HistoryView() {
     }
   }
 
+  // Reintenta la factura de una venta confirmada (AFIP caído, por ejemplo).
+  async function retryInvoice(order) {
+    setAnnulling(order.id);
+    setNotice({ kind: '', text: '' });
+    try {
+      const { order: updated } = await apiFetch(`/api/feria/orders/${order.id}/invoice`, { method: 'POST' });
+      setNotice({ kind: 'success', text: `Venta ${order.number ?? ''} facturada: ${updated.invoiceName}.` });
+      await load();
+    } catch (err) {
+      setNotice({ kind: 'error', text: err.message });
+      await load();
+    } finally {
+      setAnnulling('');
+    }
+  }
+
   const load = useCallback(async () => {
     setError('');
     try {
@@ -67,6 +83,7 @@ export default function HistoryView() {
     .filter(o => !q
       || (o.number ?? '').toLowerCase().includes(q)
       || (o.odooOrderName ?? '').toLowerCase().includes(q)
+      || (o.invoiceName ?? '').toLowerCase().includes(q)
       || o.customer.name.toLowerCase().includes(q)
       || o.customer.docNumber.includes(q));
 
@@ -121,6 +138,14 @@ export default function HistoryView() {
                   </p>
                   <PaymentChip method={order.paymentMethod} />
                   {order.errorDetail && <Notice kind="error">{order.errorDetail}</Notice>}
+                  {order.status === 'confirmado' && !order.invoiceName && order.invoiceError && (
+                    <>
+                      <Notice kind="error">{order.invoiceError}</Notice>
+                      <button type="button" className="btn btn-primary btn-sm" disabled={annulling === order.id} onClick={() => retryInvoice(order)}>
+                        {annulling === order.id ? 'Facturando…' : 'Reintentar factura'}
+                      </button>
+                    </>
+                  )}
                   {order.shipping && (
                     <p className={styles.meta}>
                       Envío: {order.shipping.street} {order.shipping.number}{order.shipping.floor ? `, ${order.shipping.floor}` : ''} — {order.shipping.city} ({order.shipping.zip}) · Tel. {order.shipping.phone}
@@ -128,7 +153,11 @@ export default function HistoryView() {
                   )}
                   <OrderLines lines={order.lines ?? []} />
                   {order.status === 'confirmado' && (
-                    (order.lines ?? []).some(l => l.status === 'entregado') ? (
+                    order.invoiceName ? (
+                      <p className={styles.meta}>
+                        Esta venta tiene la factura {order.invoiceName}: para anularla hacé la nota de crédito en Odoo y cancelá el pedido allá; la app se actualiza sola en unos minutos.
+                      </p>
+                    ) : (order.lines ?? []).some(l => l.status === 'entregado') ? (
                       <p className={styles.meta}>
                         Para anular esta venta, hacelo en Odoo con la devolución de lo entregado: la app se actualiza sola en unos minutos.
                       </p>

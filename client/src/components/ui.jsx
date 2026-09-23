@@ -74,6 +74,7 @@ export function OrderNumbers({ order, large }) {
         {order.number ?? `#${order.id.slice(0, 6)}`}
       </span>
       {order.odooOrderName && <Chip tone="neutral">Odoo {order.odooOrderName}</Chip>}
+      {order.invoiceName && <Chip tone="neutral">{order.invoiceName}</Chip>}
     </span>
   );
 }

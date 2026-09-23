@@ -164,14 +164,18 @@ function PedidosTab() {
     setBusy('confirm');
     setNotice({ kind: '', text: '' });
     try {
-      // La facturación automática quedó desactivada en el backend (el pedido
-      // igual se crea y se confirma en Odoo), así que vamos directo al confirm.
+      // Confirmar también factura (si está activada en el backend). Un error
+      // de entrega o de factura no deshace la venta: se avisa y se sigue.
       const { order } = await apiFetch(`/api/feria/orders/${selected.id}/confirm`, { method: 'POST' });
       setSelected(null);
       const numbers = `${order.number ?? ''}${order.odooOrderName ? ` (Odoo ${order.odooOrderName})` : ''}`;
-      setNotice(order.errorDetail
-        ? { kind: 'error', text: `Venta ${numbers} de ${order.customer.name} confirmada, con un aviso: ${order.errorDetail}` }
-        : { kind: 'success', text: `Venta ${numbers} de ${order.customer.name} confirmada en Odoo.` });
+      const warnings = [
+        order.errorDetail,
+        order.invoiceError && `${order.invoiceError}. Reintentala desde Historial.`,
+      ].filter(Boolean);
+      setNotice(warnings.length
+        ? { kind: 'error', text: `Venta ${numbers} de ${order.customer.name} confirmada, con un aviso: ${warnings.join(' ')}` }
+        : { kind: 'success', text: `Venta ${numbers} de ${order.customer.name} confirmada en Odoo${order.invoiceName ? ` y facturada (${order.invoiceName})` : ''}.` });
       loadOrders();
     } catch (err) {
       // Releemos el pedido para quedarnos con el estado real ('error' + el
