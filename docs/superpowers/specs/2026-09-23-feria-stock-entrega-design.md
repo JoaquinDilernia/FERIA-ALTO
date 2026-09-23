@@ -40,9 +40,18 @@ el total del pedido vuelve a dar el precio que paga el cliente.
     feria, retiro en Rolón o envío a domicilio).
   - `FER/FER` (id 426) — no se usa.
 - Medios de pago y equipo/pricelist de feria: ya resueltos (commit 2274753).
-- **Falta crear:** producto **"Envío Feria"** (tipo servicio). Se busca por
-  nombre (variable `ODOO_FERIA_SHIPPING_PRODUCT_NAME`); si no existe, confirmar
-  un pedido con envío falla con error claro.
+- **Falta crear (a mano, por un admin):** producto **"Envío Feria"** — tipo
+  servicio, impuesto "IVA 21% Ventas" (id 62), categoría "All / Gastos /
+  Compras / Envíos" (id 8025), política de facturación "cantidades pedidas"
+  (misma config que "Otros envíos terciarizados"). El usuario de la API no
+  tiene permiso para crear productos. Se busca por nombre (variable
+  `ODOO_FERIA_SHIPPING_PRODUCT_NAME`); si no existe, confirmar un pedido con
+  envío falla con error claro.
+- Odoo **16**. El usuario de la API puede leer/escribir/crear `stock.picking`,
+  `stock.move`, `stock.move.line` y `res.partner`, pero **no** los asistentes
+  `stock.backorder.confirmation` ni `stock.immediate.transfer`.
+- Impuesto de los productos: "IVA 21% Ventas" (id 62), **no incluido en el
+  precio** — confirma el cálculo de la sección IVA.
 
 Los ids de ubicación van por variable de entorno
 (`ODOO_FERIA_LOCATION_EXHIBICION_ID=427`, `ODOO_FERIA_LOCATION_ROLON_ID=428`),
@@ -59,7 +68,8 @@ Campos nuevos, además de `sku, modelo, condition, qty, unitPrice, listPrice`:
 | `lineId` | id único dentro del pedido | backend al crear |
 | `location` | `exhibicion` · `rolon` | vendedor |
 | `delivery` | `ahora` · `retira_feria` · `retira_rolon` · `envio` | vendedor |
-| `status` | `pendiente` · `entregado` · `eliminado` | sistema |
+| `status` | `pendiente` · `enviado_feria` · `entregado` · `eliminado` | sistema |
+| `sentToFeriaAt`, `sentToFeriaBy` | fecha, usuario | al pasar a enviado_feria |
 | `deliveredAt`, `deliveredBy` | fecha, usuario | al pasar a entregado |
 | `removedAt`, `removedBy` | fecha, usuario | al pasar a eliminado |
 | `odooLineId` | id de `sale.order.line` | al confirmar en caja |
@@ -175,17 +185,22 @@ Por cada línea elige **ubicación** y **forma de entrega**:
    (backorder) con el resto. Esas líneas pasan a `entregado` y se libera su
    reserva.
 
-La validación parcial (paso 4 y el "Hecho" de Logística) es una única función
+La validación parcial (paso 4 y todo "Hecho") es una única función
 `deliverLines(odooOrderId, [{odooLineId, qty, locationId}])`:
-- busca el remito abierto del pedido, en los `stock.move` de esas líneas
-  (`sale_line_id`) fija la ubicación origen y la cantidad hecha,
-- valida el remito resolviendo el asistente de backorder con "crear
-  backorder".
+- busca el remito abierto (no `done`/`cancel`) del pedido; en las
+  `stock.move.line` de los `stock.move` de esas líneas (`sale_line_id`) fija
+  `location_id` (ubicación elegida) y `qty_done`; el resto queda en 0,
+- llama `button_validate` con contexto `skip_backorder: true` (sin
+  `picking_ids_not_to_backorder`): en Odoo 16 eso valida sin abrir el
+  asistente **y** genera el remito pendiente (backorder) con lo no hecho. Se
+  evita así depender de los asistentes, a los que la API no tiene acceso.
 
-**Riesgo:** el detalle de cómo marcar cantidades hechas y resolver el
-asistente depende de la versión de Odoo. **Primer paso del plan: spike** con
-un pedido real de 2 productos (uno "ahora", uno pendiente) antes de construir
-el resto.
+**Riesgo:** el comportamiento exacto de `skip_backorder` y de fijar
+`qty_done` en una ubicación distinta a la reservada por Odoo se verifica en
+la instancia real. **Primer paso del plan: spike** con un pedido real de 2
+productos (uno "ahora" desde Exhibición, uno pendiente desde Rolón) antes de
+construir el resto. Hay stock para la prueba (3 en Exhibición, 2 en Rolón al
+2026-09-23).
 
 Si la validación falla después de confirmado el pedido: el pedido queda
 `confirmado` con esas líneas aún `pendiente` + `errorDetail`, y se pueden
@@ -201,19 +216,36 @@ Ruta nueva `/#/logistica`, mismo login que caja (rol `caja`).
 - Tres pestañas: **Mandar a feria** (`retira_feria`), **Retiro en Rolón**
   (`retira_rolon`), **Envío a domicilio** (`envio`, muestra dirección,
   teléfono y observaciones).
-- Cada línea tiene botón **"Hecho"** → `deliverLines` en Odoo con su ubicación
-  → `entregado` + libera reserva.
-- "Hecho" significa **entregado al cliente** (el remito de Odoo es la salida
-  al cliente), no "preparado". En "Mandar a feria" se aprieta cuando el
-  cliente lo retira en la feria; mientras tanto la línea sigue pendiente y
-  reservada. El traslado físico Rolón → feria no se registra como movimiento
-  aparte en Odoo (sale de `FER/Stock/Rolon` directo al cliente).
+
+### Quién marca qué
+
+"Hecho" = **el cliente ya se lo llevó** (o ya salió el envío). Siempre
+dispara `deliverLines` en Odoo → `entregado` + libera reserva.
+
+| Entrega | Quién | Acción |
+|---|---|---|
+| Se lleva ahora | Caja | Automático al confirmar |
+| Retira en feria | Logística | **"Enviado a feria"** → `enviado_feria` (solo app, no toca Odoo, sigue reservado) |
+| Retira en feria | Caja | **"Hecho"** cuando el cliente lo retira |
+| Retira en Rolón | Logística | **"Hecho"** cuando el cliente lo retira |
+| Envío a domicilio | Logística | **"Hecho"** cuando sale el envío *(asumido — confirmar)* |
+
+El traslado físico Rolón → feria no es un movimiento aparte en Odoo: al
+"Hecho" la línea sale de su ubicación (`FER/Stock/Rolon` si así se cargó)
+directo al cliente.
+
+### Caja — pestaña "Retiros en feria"
+
+Nueva pestaña en Caja: pedidos confirmados con líneas `retira_feria` en
+`pendiente` o `enviado_feria` (estas últimas resaltadas: ya están en la
+feria). Botón "Hecho" por línea. Se busca por DNI o nombre del cliente.
 
 ## Cómo se ve un pedido
 
 En Caja y en Logística cada línea muestra su estado:
-✅ **Entregado** (fecha, quién) · ⏳ **Pendiente** (forma de entrega, ubicación)
-· ~~**Eliminado**~~ (fecha, quién).
+✅ **Entregado** (fecha, quién) · 🚚 **Enviado a feria** (fecha, quién) ·
+⏳ **Pendiente** (forma de entrega, ubicación) · ~~**Eliminado**~~ (fecha,
+quién).
 
 ## Rutas nuevas / cambiadas (backend)
 
@@ -224,8 +256,9 @@ En Caja y en Logística cada línea muestra su estado:
 | `DELETE /orders/:id/lines/:lineId` | caja | elimina línea (soft), libera reserva |
 | `POST /orders/:id/cancel` | caja | cancela, libera reservas |
 | `POST /orders/:id/confirm` | caja | + almacén, envío, validación de líneas `ahora` |
-| `GET /logistics/orders` | caja | confirmados con líneas pendientes |
-| `POST /orders/:id/lines/:lineId/deliver` | caja | "Hecho" desde Logística |
+| `GET /logistics/orders` | caja | confirmados con líneas pendientes / enviadas a feria |
+| `POST /orders/:id/lines/:lineId/sent-to-feria` | caja | "Enviado a feria" (solo app) |
+| `POST /orders/:id/lines/:lineId/deliver` | caja | "Hecho" (Caja o Logística) |
 
 ## Testing
 
