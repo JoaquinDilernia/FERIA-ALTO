@@ -40,13 +40,14 @@ el total del pedido vuelve a dar el precio que paga el cliente.
     feria, retiro en Rolón o envío a domicilio).
   - `FER/FER` (id 426) — no se usa.
 - Medios de pago y equipo/pricelist de feria: ya resueltos (commit 2274753).
-- **Falta crear (a mano, por un admin):** producto **"Envío Feria"** — tipo
-  servicio, impuesto "IVA 21% Ventas" (id 62), categoría "All / Gastos /
-  Compras / Envíos" (id 8025), política de facturación "cantidades pedidas"
-  (misma config que "Otros envíos terciarizados"). El usuario de la API no
-  tiene permiso para crear productos. Se busca por nombre (variable
-  `ODOO_FERIA_SHIPPING_PRODUCT_NAME`); si no existe, confirmar un pedido con
-  envío falla con error claro.
+- Producto de envío: **"Otros envíos terciarizados"** (product.product id
+  9759) — ya existe, tipo **servicio** (no aparece en el remito ni mueve
+  stock), impuesto "IVA 21% Ventas" (id 62), categoría Envíos, facturación
+  por cantidades pedidas. Se descartó "FLETE" por ser consumible (aparecería
+  como ítem a entregar en el remito). Se busca por nombre (variable
+  `ODOO_FERIA_SHIPPING_PRODUCT_NAME`, default ese nombre) para poder
+  cambiarlo sin tocar código; si no existe, confirmar un pedido con envío
+  falla con error claro. (El usuario de la API no puede crear productos.)
 - Odoo **16**. El usuario de la API puede leer/escribir/crear `stock.picking`,
   `stock.move`, `stock.move.line` y `res.partner`, pero **no** los asistentes
   `stock.backorder.confirmation` ni `stock.immediate.transfer`.
@@ -228,7 +229,18 @@ dispara `deliverLines` en Odoo → `entregado` + libera reserva.
 | Retira en feria | Logística | **"Enviado a feria"** → `enviado_feria` (solo app, no toca Odoo, sigue reservado) |
 | Retira en feria | Caja | **"Hecho"** cuando el cliente lo retira |
 | Retira en Rolón | Logística | **"Hecho"** cuando el cliente lo retira |
-| Envío a domicilio | Logística | **"Hecho"** cuando sale el envío *(asumido — confirmar)* |
+| Envío a domicilio | Logística | **"Hecho"** cuando sale el envío |
+
+**Caja puede todo, siempre** (el admin en caja resuelve cambios de último
+momento): marcar "Enviado a feria" y "Hecho" en cualquier línea de cualquier
+forma de entrega, y **editar ubicación y forma de entrega de una línea
+pendiente/enviada a feria, incluso con el pedido ya confirmado**. Es posible
+porque la ubicación recién se le fija a Odoo al validar ("Hecho"). Si cambia
+la ubicación, la reserva se mueve en una transacción y solo se permite si hay
+disponible en la nueva. Cambiar a/desde "Envío a domicilio" después de
+confirmar **no** agrega/quita la línea de envío ni la dirección en Odoo (eso se
+ajusta en Odoo a mano) — la app avisa. Lo que sigue sin poder hacerse tras
+confirmar: eliminar líneas o cancelar el pedido (se hace en Odoo).
 
 El traslado físico Rolón → feria no es un movimiento aparte en Odoo: al
 "Hecho" la línea sale de su ubicación (`FER/Stock/Rolon` si así se cargó)
@@ -259,6 +271,7 @@ quién).
 | `GET /logistics/orders` | caja | confirmados con líneas pendientes / enviadas a feria |
 | `POST /orders/:id/lines/:lineId/sent-to-feria` | caja | "Enviado a feria" (solo app) |
 | `POST /orders/:id/lines/:lineId/deliver` | caja | "Hecho" (Caja o Logística) |
+| `PATCH /orders/:id/lines/:lineId` | caja | cambiar ubicación / forma de entrega (mueve reserva) |
 
 ## Testing
 
