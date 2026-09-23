@@ -24,6 +24,7 @@ function PedidosTab() {
   // null: mostrando la dirección. {}: editándola. { line, changes }: cargándola
   // para pasar esa línea a envío a domicilio.
   const [shippingEdit, setShippingEdit] = useState(null);
+  const [offline, setOffline] = useState(false);
 
   // Traemos pendientes Y errores: si un confirm falla, el backend deja el
   // pedido en 'error' y, si sólo miráramos 'pendiente', la venta desaparecería
@@ -35,8 +36,10 @@ function PedidosTab() {
         apiFetch('/api/feria/orders?status=error'),
       ]);
       setOrders([...(errores.orders || []), ...(pendientes.orders || [])]);
+      setOffline(false);
     } catch {
-      // Silencioso — reintenta en el próximo poll.
+      // Reintenta en el próximo poll; mientras tanto se avisa en pantalla.
+      setOffline(true);
     }
   }, []);
 
@@ -169,6 +172,7 @@ function PedidosTab() {
         <h2 className={styles.queueTitle}>
           Por confirmar <span className={`num ${styles.queueCount}`}>{orders.length}</span>
         </h2>
+        {offline && <Notice kind="error">Sin conexión con el servidor. Reintentando…</Notice>}
         {orders.length === 0 && <EmptyState title="No hay pedidos esperando">Los pedidos que carguen los vendedores aparecen acá.</EmptyState>}
         <ul className={styles.queueList}>
           {orders.map(order => (

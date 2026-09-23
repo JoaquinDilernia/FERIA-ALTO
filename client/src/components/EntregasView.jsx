@@ -41,12 +41,23 @@ export default function EntregasView({ initialFilter }) {
   // (con line, para pasar esa línea a envío a domicilio después).
   const [shippingEdit, setShippingEdit] = useState(null);
 
+  const [offline, setOffline] = useState(false);
+  const [toConfirm, setToConfirm] = useState(0);
+
+  // Entregas solo lista pedidos confirmados; los que esperan en Caja se
+  // cuentan aparte para que nadie los busque acá. Si el servidor no responde
+  // se avisa en vez de mostrar todo en 0.
   const load = useCallback(async () => {
     try {
-      const { orders } = await apiFetch('/api/feria/logistics/orders');
+      const [{ orders }, pendientes] = await Promise.all([
+        apiFetch('/api/feria/logistics/orders'),
+        apiFetch('/api/feria/orders?status=pendiente'),
+      ]);
       setOrders(orders);
+      setToConfirm(pendientes.orders.length);
+      setOffline(false);
     } catch {
-      // Silencioso — reintenta en el próximo poll.
+      setOffline(true);
     }
   }, []);
 
@@ -146,6 +157,12 @@ export default function EntregasView({ initialFilter }) {
         />
       </div>
 
+      {offline && <Notice kind="error">Sin conexión con el servidor. Reintentando cada 10 segundos; lo que ves puede estar desactualizado.</Notice>}
+      {!offline && toConfirm > 0 && (
+        <Notice kind="info">
+          {toConfirm === 1 ? 'Hay 1 pedido esperando' : `Hay ${toConfirm} pedidos esperando`} que Caja confirme la venta. Aparecen acá cuando se confirman.
+        </Notice>
+      )}
       <Notice kind={notice.kind || 'info'} onClose={() => setNotice({ kind: '', text: '' })}>{notice.text}</Notice>
 
       {visible.length === 0 && <EmptyState title="Todo al día">{EMPTY_TEXT[filter]}</EmptyState>}
