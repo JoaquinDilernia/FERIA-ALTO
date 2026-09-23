@@ -22,6 +22,8 @@ feria, cliente por DNI y el panel público).
   administra qué rebaja está activa por SKU.
 - `/feria` — público, sin login: buscador de precio por SKU/modelo para
   que lo use el cliente.
+- `/logistica` — mismo login que caja: pedidos confirmados con entregas
+  pendientes (mandar a feria, retiro en Rolón, envío a domicilio).
 
 ## Deploy
 
@@ -29,7 +31,9 @@ feria, cliente por DNI y el panel público).
   `feature/feria-outlet` de `Reportes` se mergea a `main`, las rutas
   `/api/feria/*` quedan disponibles en el mismo servicio de Railway que ya
   corre los reportes. Variables de entorno nuevas a cargar en ese servicio:
-  `FERIA_AUTH_SECRET`, `ODOO_FERIA_TEAM_NAME`, `ODOO_FERIA_PRICELIST_NAME`
+  `FERIA_AUTH_SECRET`, `ODOO_FERIA_TEAM_NAME`, `ODOO_FERIA_PRICELIST_NAME`,
+  `ODOO_FERIA_WAREHOUSE_ID`, `ODOO_FERIA_LOCATION_EXHIBICION_ID`,
+  `ODOO_FERIA_LOCATION_ROLON_ID`, `ODOO_FERIA_SHIPPING_PRODUCT_NAME`
   (ver `Reportes/backend/.env.example`).
 - **Frontend**: deploy propio, liviano (build estático con `npm run build`
   en `client/`), con `VITE_API_URL` apuntando a la URL pública del servicio
@@ -48,3 +52,8 @@ Antes del primer uso real:
   `Reportes/backend` para cargar `feria_products` (repetir cada vez que el
   negocio actualice el Excel de precios — no pisa las rebajas ya activadas
   a mano).
+- Borrar el vendedor de prueba `vendedor-prueba` (PIN 9090) de
+  `feria_sellers`.
+- El stock sale de Odoo en vivo (almacén Feria: `FER/Stock/exhibicion` y
+  `FER/Stock/Rolon`); la columna Stock del Excel ya no se usa. Nadie debe
+  sacar stock del almacén Feria por fuera de la app.
