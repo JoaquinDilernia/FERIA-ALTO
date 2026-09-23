@@ -19,7 +19,7 @@ el total del pedido vuelve a dar el precio que paga el cliente.
   productos (`listPrice`) y a la línea de envío ($10.000 → 8.264,46).
 - El `discount` del medio de pago no cambia (es un porcentaje).
 - Constante `IVA_RATE = 0.21` en `feriaPricing.mjs`. Supuesto: todos los
-  productos de la feria (y "Envío Feria") tienen IVA 21% en Odoo. Si alguno
+  productos de la feria (y el producto de envío) tienen IVA 21% en Odoo. Si alguno
   tuviera otra alícuota, su total en Odoo no coincidiría — se verifica en la
   prueba real.
 - Por el redondeo a centavos, el total en Odoo puede diferir en ±$0,01–0,05
@@ -156,7 +156,7 @@ Por cada línea elige **ubicación** y **forma de entrega**:
 
 - Cargo fijo **$10.000 por pedido** (no por línea), **sin** descuento por
   medio de pago. Constante en `feriaPricing.mjs` (`SHIPPING_COST = 10000`).
-- En Odoo: una línea extra con el producto "Envío Feria", `price_unit`
+- En Odoo: una línea extra con el producto "Otros envíos terciarizados", `price_unit`
   10000 sin IVA (8.264,46, ver sección IVA), `discount 0`.
 - Dirección: se crea un contacto hijo del cliente (`res.partner`,
   `type: 'delivery'`, `parent_id` = cliente) con la dirección, teléfono y
