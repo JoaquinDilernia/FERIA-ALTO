@@ -162,6 +162,16 @@ export default function StatsView() {
               <p className={`num ${styles.kpiValue}`}>{formatMoney(t.discount)}</p>
               <p className={styles.kpiSub}>sobre el precio de lista</p>
             </div>
+            <div className={styles.kpi}>
+              <p className={styles.kpiLabel}>Margen sin IVA</p>
+              <p className={`num ${styles.kpiValue}`}>{t.margin == null ? '—' : formatMoney(t.margin)}</p>
+              <p className={styles.kpiSub}>
+                {t.margin == null
+                  ? 'Sin costo galpón en estas ventas'
+                  : `${Math.round(t.marginPct * 100)}% · costo galpón ${formatMoney(t.cost)}`}
+                {t.unitsWithoutCost ? ` · ${t.unitsWithoutCost} u. sin costo` : ''}
+              </p>
+            </div>
           </section>
 
           <section className={styles.grid}>
@@ -197,7 +207,8 @@ export default function StatsView() {
               <BarList
                 emptyText="Sin ventas."
                 rows={stats.topProducts.map(p => ({
-                  key: p.sku, label: `${p.modelo} · ${p.sku}`, value: p.revenue, sub: `${p.units} u.`,
+                  key: p.sku, label: `${p.modelo} · ${p.sku}`, value: p.revenue,
+                  sub: `${p.units} u.${p.margin != null ? ` · margen sin IVA ${formatMoney(p.margin)}` : ''}`,
                 }))}
               />
             </article>

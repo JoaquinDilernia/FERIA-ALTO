@@ -23,7 +23,7 @@
 .muted { color: var(--ink-3); font-size: var(--fs-sm); }
 
 /* ---- Totales ---- */
-.kpis { display: grid; grid-template-columns: 1.4fr repeat(3, 1fr); gap: var(--s-3); }
+.kpis { display: grid; grid-template-columns: 1.4fr repeat(4, 1fr); gap: var(--s-3); }
 .kpi {
   padding: var(--s-4) var(--s-5);
   border-radius: var(--r-lg);
