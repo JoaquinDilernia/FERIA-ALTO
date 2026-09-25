@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 import { apiFetch } from '../lib/api.js';
 import {
   LOCATION_LABELS, DELIVERY_LABELS, SHIPPING_COST, PAYMENT_METHODS, CONDITION_LABELS, formatMoney,
-  deliveryAllowed, defaultDeliveryFor, locationsFor, defaultLocationFor, hasDiscontinuoStock,
+  deliveryAllowed, defaultDeliveryFor, locationsFor, defaultLocationFor, hasDiscontinuoStock, RETIRA_FERIA_HINT, SHIPPING_ZONE_HINT,
 } from '../lib/feriaLabels.js';
 import { AppHeader, Chip, Notice, EmptyState, ProductPhoto, ConditionChip } from '../components/ui.jsx';
 import styles from './VendedorPanel.module.css';
@@ -408,9 +408,10 @@ export default function VendedorPanel() {
 
                     {line.delivery === 'envio' && (
                       <p className={styles.shippingNote}>
-                        Va a domicilio: cargá la dirección en <a href="#envio" onClick={(e) => { e.preventDefault(); document.getElementById('envio')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>Datos de envío</a>.
+                        Va a domicilio (solo CABA o GBA): cargá la dirección en <a href="#envio" onClick={(e) => { e.preventDefault(); document.getElementById('envio')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>Datos de envío</a>.
                       </p>
                     )}
+                    {line.delivery === 'retira_feria' && <p className={styles.retiraNote}>{RETIRA_FERIA_HINT}</p>}
                   </li>
                 ))}
               </ul>
@@ -478,7 +479,7 @@ export default function VendedorPanel() {
               <h2 className={styles.summaryTitle}>
                 Datos de envío <span className={styles.shippingCost}>+ {formatMoney(SHIPPING_COST)}</span>
               </h2>
-              <p className={styles.shippingHelp}>Una línea va a domicilio: completá a dónde se manda.</p>
+              <p className={styles.shippingHelp}>Una línea va a domicilio: completá a dónde se manda. {SHIPPING_ZONE_HINT}</p>
               <div className={styles.shippingGrid}>
                 {[
                   ['street', 'Calle', true], ['number', 'Número'], ['floor', 'Piso / depto (opcional)'],

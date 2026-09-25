@@ -175,6 +175,8 @@
 
 .shippingNote { margin-top: var(--s-2); font-size: var(--fs-sm); color: var(--pay-mp); }
 .shippingNote a { color: inherit; font-weight: 600; }
+/* Condiciones del retiro por la feria: el vendedor se las tiene que decir al cliente. */
+.retiraNote { margin-top: var(--s-2); padding: var(--s-2) var(--s-3); border-radius: var(--r-sm); background: var(--pending-bg); color: var(--pending); font-size: var(--fs-sm); line-height: 1.4; }
 
 /* ---- Resumen: cliente, pago, envío, totales ---- */
 .summary { display: flex; flex-direction: column; gap: var(--s-3); }

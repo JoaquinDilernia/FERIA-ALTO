@@ -15,6 +15,7 @@ import {
 } from '../components/ui.jsx';
 import {
   orderBreakdown, formatMoney, formatTime, formatDateTime, paymentMethodInfo, CONDITION_LABELS, PAYMENT_METHODS, readAmount,
+  SHIPPING_ZONE_HINT,
 } from '../lib/feriaLabels.js';
 import styles from './CajaPanel.module.css';
 
@@ -424,9 +425,9 @@ function PedidosTab({ openRequest }) {
                 initial={selected.shipping}
                 defaultPhone={selected.customer.phone}
                 title={shippingEdit.line ? `A dónde se manda ${shippingEdit.line.modelo}` : 'Dirección de envío'}
-                hint={selected.odooOrderId
+                hint={`${SHIPPING_ZONE_HINT} ${selected.odooOrderId
                   ? 'El pedido ya está en Odoo: esta dirección la usa Logística; en Odoo corregila a mano.'
-                  : 'Se carga en Odoo al confirmar la venta.'}
+                  : 'Se carga en Odoo al confirmar la venta.'}`}
                 saving={busy === 'shipping'}
                 onSave={saveShipping}
                 onCancel={() => setShippingEdit(null)}

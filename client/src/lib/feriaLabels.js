@@ -101,13 +101,17 @@ export function orderTotal(order) {
 }
 
 // Misma regla que validateLineDelivery del backend: "Me llevo ahora" sale de
-// Exhibición o Fallados (los dos están en la feria) y "Retira en Rolón" sale
-// de Rolón; retira en feria y envío, de cualquier ubicación.
+// Exhibición o Fallados (los dos están en la feria); "Retira en Rolón" y el
+// envío a domicilio, solo de Rolón; retira en feria, de cualquier ubicación.
 export function deliveryAllowed(delivery, location) {
   if (delivery === 'ahora') return location === 'exhibicion' || location === 'fallados';
-  if (delivery === 'retira_rolon') return location === 'rolon';
+  if (delivery === 'retira_rolon' || delivery === 'envio') return location === 'rolon';
   return true;
 }
+
+// Condiciones que el vendedor tiene que decirle al cliente.
+export const RETIRA_FERIA_HINT = 'Se retira por la feria hasta el sábado 18 hs. Insistí en que se lo lleve ahora: si lo deja, no se asegura que esté igual al retirarlo. Que chequee que quede guardado en el lugar de retiro antes de irse.';
+export const SHIPPING_ZONE_HINT = 'Envío a domicilio solo a CABA o GBA, y solo para lo que sale de Rolón.';
 
 export function defaultDeliveryFor(location) {
   return location === 'rolon' ? 'retira_rolon' : 'ahora';
