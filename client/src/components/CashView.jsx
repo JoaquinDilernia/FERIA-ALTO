@@ -20,10 +20,10 @@ function CashSummary({ summary }) {
       <div className={styles.row}><dt>Fondo inicial</dt><dd className="num">{formatMoney(summary.openingCash)}</dd></div>
       <div className={styles.row}><dt>Ventas en efectivo</dt><dd className="num">{formatMoney(summary.byMethod.efectivo)}</dd></div>
       <div className={styles.row}><dt>Ventas por transferencia</dt><dd className="num">{formatMoney(summary.byMethod.transferencia)}</dd></div>
-      <div className={styles.row}><dt>Ventas con Mercado Pago</dt><dd className="num">{formatMoney(mp.total)}</dd></div>
+      <div className={styles.row}><dt>Ventas con tarjeta</dt><dd className="num">{formatMoney(mp.total)}</dd></div>
       <div className={`${styles.row} ${styles.sub}`}><dt>Débito</dt><dd className="num">{formatMoney(mp.mp_debito)}</dd></div>
-      <div className={`${styles.row} ${styles.sub}`}><dt>1 cuota</dt><dd className="num">{formatMoney(mp.mp_1_cuota)}</dd></div>
-      <div className={`${styles.row} ${styles.sub}`}><dt>3 cuotas</dt><dd className="num">{formatMoney(mp.mp_3_cuotas)}</dd></div>
+      <div className={`${styles.row} ${styles.sub}`}><dt>Crédito 1 cuota</dt><dd className="num">{formatMoney(mp.mp_1_cuota)}</dd></div>
+      <div className={`${styles.row} ${styles.sub}`}><dt>Crédito 3 cuotas</dt><dd className="num">{formatMoney(mp.mp_3_cuotas)}</dd></div>
       <div className={`${styles.row} ${styles.total}`}>
         <dt>Total vendido <span className={styles.muted}>({summary.sales} {summary.sales === 1 ? 'venta' : 'ventas'}{summary.annulled ? `, ${summary.annulled} anulada${summary.annulled === 1 ? '' : 's'} sin sumar` : ''})</span></dt>
         <dd className="num">{formatMoney(summary.total)}</dd>

@@ -92,6 +92,8 @@
 .priceLabel { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-sm); line-height: 1.3; }
 /* El punto de color del medio de pago, como en el resto de la app. */
 .priceLabel::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.priceName { display: flex; flex-direction: column; font-weight: 500; }
+.priceDetail { font-size: var(--fs-xs); font-weight: 400; opacity: 0.85; }
 .priceValue { font-size: var(--fs-lg); font-weight: 600; color: var(--ink); white-space: nowrap; }
 .tone-transfer { background: var(--pay-transfer-bg); color: var(--pay-transfer); }
 .tone-cash { background: var(--pay-cash-bg); color: var(--pay-cash); }

@@ -9,6 +9,13 @@ const SEARCH_MIN_CHARS = 6;
 // Mismas claves que PUBLIC_PRICE_OPTIONS del backend.
 const PRICE_TONES = { transferencia: 'transfer', efectivo: 'cash', mercadopago: 'mp' };
 
+// "Tarjeta (débito o crédito 1 y 3 cuotas)" → nombre arriba y detalle en chico,
+// para que en el celular se lea de un vistazo.
+function splitLabel(label) {
+  const match = /^(.*?)\s*\((.*)\)$/.exec(label);
+  return match ? { main: match[1], detail: match[2] } : { main: label, detail: null };
+}
+
 export default function FeriaPublico() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -77,7 +84,12 @@ export default function FeriaPublico() {
                   <ul className={styles.prices}>
                     {Object.entries(precios).map(([key, info]) => (
                       <li key={key} className={`${styles.price} ${styles[`tone-${PRICE_TONES[key]}`] ?? ''}`}>
-                        <span className={styles.priceLabel}>{info.label}</span>
+                        <span className={styles.priceLabel}>
+                          <span className={styles.priceName}>
+                            {splitLabel(info.label).main}
+                            {splitLabel(info.label).detail && <small className={styles.priceDetail}>{splitLabel(info.label).detail}</small>}
+                          </span>
+                        </span>
                         <span className={`num ${styles.priceValue}`}>{formatMoney(info.precio)}</span>
                       </li>
                     ))}

@@ -33,11 +33,11 @@ export const DELIVERY_LABELS = {
 // Mismos medios y porcentajes que PAYMENT_METHODS del backend
 // (feriaPricing.mjs). `tone` es el color de su etiqueta.
 export const PAYMENT_METHODS = [
-  { value: 'transferencia', label: 'Transferencia', discountPct: 15, tone: 'transfer' },
+  { value: 'transferencia', label: 'Transferencia (Mercado Pago)', discountPct: 15, tone: 'transfer' },
   { value: 'efectivo', label: 'Efectivo', discountPct: 10, tone: 'cash' },
-  { value: 'mp_debito', label: 'Mercado Pago Débito', discountPct: 0, tone: 'mp' },
-  { value: 'mp_1_cuota', label: 'Mercado Pago 1 cuota', discountPct: 0, tone: 'mp' },
-  { value: 'mp_3_cuotas', label: 'Mercado Pago 3 cuotas', discountPct: 0, tone: 'mp' },
+  { value: 'mp_debito', label: 'Tarjeta débito', discountPct: 0, tone: 'mp' },
+  { value: 'mp_1_cuota', label: 'Tarjeta crédito 1 cuota', discountPct: 0, tone: 'mp' },
+  { value: 'mp_3_cuotas', label: 'Tarjeta crédito 3 cuotas', discountPct: 0, tone: 'mp' },
 ];
 
 export function paymentMethodInfo(value) {

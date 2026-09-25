@@ -42,9 +42,9 @@ function ManualRebajaCard({ info, saving, onSave }) {
       <input className={`input num ${styles.manualInput}`} inputMode="decimal" placeholder="Precio de lista" value={text}
         disabled={saving} aria-label="Precio manual de la rebaja 3" onChange={(e) => setText(e.target.value)} />
       <span className={styles.levelPays}>
-        <span>Transferencia <b className="num">{formatMoney(pay('transferencia'))}</b></span>
+        <span>Transferencia (MP) <b className="num">{formatMoney(pay('transferencia'))}</b></span>
         <span>Efectivo <b className="num">{formatMoney(pay('efectivo'))}</b></span>
-        <span>Mercado Pago <b className="num">{formatMoney(pay('mp_debito'))}</b></span>
+        <span>Tarjeta <b className="num">{formatMoney(pay('mp_debito'))}</b></span>
       </span>
       <button type="button" className={`btn btn-sm ${active ? 'btn-secondary' : 'btn-primary'}`} disabled={saving || !valid || unchanged}
         onClick={() => onSave(price)}>
@@ -675,9 +675,9 @@ function RebajasTab() {
                       <span className={styles.levelName}>{REBAJA_LABELS[n.level]}{active ? ' · activa' : ''}</span>
                       <span className={`num ${styles.levelPrice}`}>{formatMoney(n.precioTabla)}</span>
                       <span className={styles.levelPays}>
-                        <span>Transferencia <b className="num">{formatMoney(n.precios.transferencia)}</b></span>
+                        <span>Transferencia (MP) <b className="num">{formatMoney(n.precios.transferencia)}</b></span>
                         <span>Efectivo <b className="num">{formatMoney(n.precios.efectivo)}</b></span>
-                        <span>Mercado Pago <b className="num">{formatMoney(n.precios.mercadopago)}</b></span>
+                        <span>Tarjeta <b className="num">{formatMoney(n.precios.mercadopago)}</b></span>
                       </span>
                     </button>
                   );
