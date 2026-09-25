@@ -9,6 +9,7 @@ import AddProductSearch from '../components/AddProductSearch.jsx';
 import HistoryView from '../components/HistoryView.jsx';
 import UsersView from '../components/UsersView.jsx';
 import StockAlertsView from '../components/StockAlertsView.jsx';
+import ProductLookupView from '../components/ProductLookupView.jsx';
 import StatsView from '../components/StatsView.jsx';
 import CashView from '../components/CashView.jsx';
 import {
@@ -701,6 +702,7 @@ const TABS = [
   { value: 'pedidos', label: 'Pedidos' },
   { value: 'caja', label: 'Caja del día' },
   { value: 'entregas', label: 'Entregas' },
+  { value: 'productos', label: 'Productos' },
   { value: 'alertas', label: 'Alerta stock' },
   { value: 'historial', label: 'Historial' },
 ];
@@ -745,6 +747,7 @@ export default function CajaPanel() {
       {/* Caja arranca en "Retiros en depósito feria" (lo que el cliente viene a buscar),
           pero puede ver y marcar todo, igual que Logística. */}
       {tab === 'entregas' && <EntregasView initialFilter="retiros_feria" />}
+      {tab === 'productos' && <ProductLookupView />}
       {tab === 'alertas' && <StockAlertsView />}
       {tab === 'historial' && <HistoryView onOpen={openFromHistory} />}
       {tab === 'estadisticas' && user.adminRole === 'superadmin' && <StatsView />}
