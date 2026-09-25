@@ -112,7 +112,7 @@ export default function UsersView() {
 
       <section className={styles.card}>
         <h2 className={styles.title}>Caja y Logística</h2>
-        <p className={styles.muted}>Entran con email y contraseña. Caja ve todo el panel de caja; Logística, solo <b>/#/logistica</b>.</p>
+        <p className={styles.muted}>Entran con email y contraseña. Caja ve pedidos, caja del día, entregas, alerta stock e historial; Super admin además estadísticas, rebajas y usuarios; Logística, solo <b>/#/logistica</b>.</p>
         <table className={styles.table}>
           <thead><tr><th>Email</th><th>Nombre</th><th>Rol</th><th /></tr></thead>
           <tbody>
@@ -122,7 +122,7 @@ export default function UsersView() {
                 <td>{a.name}{a.test && <span className={styles.muted}> · prueba</span>}</td>
                 <td>{ADMIN_ROLES[a.role] ?? a.role}</td>
                 <td className={styles.actions}>
-                  {a.role !== 'superadmin' && (
+                  {!a.protected && (
                     <>
                       <button type="button" className="btn btn-ghost btn-sm" disabled={busy}
                         onClick={() => { setEditingAdmin(a.id); setAdmin({ email: a.email, name: a.name ?? '', password: '', role: a.role }); }}>Editar</button>
@@ -147,6 +147,7 @@ export default function UsersView() {
               <select className="select" value={admin.role} onChange={(e) => setAdmin({ ...admin, role: e.target.value })}>
                 <option value="caja">Caja</option>
                 <option value="logistica">Logística</option>
+                <option value="superadmin">Super admin</option>
               </select></label>
             <label className="field"><span className="field-label">{editingAdmin ? 'Contraseña nueva (opcional)' : 'Contraseña (mín. 6)'}</span>
               <input className="input" type="password" autoComplete="new-password" value={admin.password} onChange={(e) => setAdmin({ ...admin, password: e.target.value })} /></label>

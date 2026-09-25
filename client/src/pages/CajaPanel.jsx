@@ -703,11 +703,15 @@ const TABS = [
   { value: 'entregas', label: 'Entregas' },
   { value: 'alertas', label: 'Alerta stock' },
   { value: 'historial', label: 'Historial' },
+];
+// Caja normal no ve estadísticas, rebajas ni usuarios (el backend tampoco
+// se las da); el super admin ve todo.
+const SUPERADMIN_TABS = [
+  ...TABS,
   { value: 'estadisticas', label: 'Estadísticas' },
   { value: 'rebajas', label: 'Rebajas' },
+  { value: 'usuarios', label: 'Usuarios' },
 ];
-// Solo el super admin administra usuarios.
-const SUPERADMIN_TABS = [...TABS, { value: 'usuarios', label: 'Usuarios' }];
 
 export default function CajaPanel() {
   const user = getSession('caja')?.profile ?? {};
@@ -743,8 +747,8 @@ export default function CajaPanel() {
       {tab === 'entregas' && <EntregasView initialFilter="retiros_feria" />}
       {tab === 'alertas' && <StockAlertsView />}
       {tab === 'historial' && <HistoryView onOpen={openFromHistory} />}
-      {tab === 'estadisticas' && <StatsView />}
-      {tab === 'rebajas' && <RebajasTab />}
+      {tab === 'estadisticas' && user.adminRole === 'superadmin' && <StatsView />}
+      {tab === 'rebajas' && user.adminRole === 'superadmin' && <RebajasTab />}
       {tab === 'usuarios' && user.adminRole === 'superadmin' && <UsersView />}
     </div>
   );
