@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { apiFetch } from '../lib/api.js';
 import { orderBreakdown, formatMoney, formatDateTime } from '../lib/feriaLabels.js';
 import OrderLines from './OrderLines.jsx';
-import { OrderNumbers, OrderStatusChip, PaymentChip, Notice, EmptyState } from './ui.jsx';
+import { OrderNumbers, OrderStatusChip, PaymentChips, Notice, EmptyState } from './ui.jsx';
 import styles from './HistoryView.module.css';
 
 const STATUS_FILTERS = [
@@ -20,7 +20,7 @@ function pendingCount(order) {
 
 // Historial de todos los pedidos (solo lectura): para responder "¿qué pasó
 // con el F-0012?" aunque ya no esté en ninguna cola.
-export default function HistoryView() {
+export default function HistoryView({ onOpen }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -133,10 +133,18 @@ export default function HistoryView() {
               {open && (
                 <div className={styles.detail}>
                   <p className={styles.meta}>
-                    DNI {order.customer.docNumber}{order.customer.phone ? ` · Tel. ${order.customer.phone}` : ''}
+                    DNI {order.customer.docNumber}{order.customer.phone ? ` · Tel. ${order.customer.phone}` : ''}{order.customer.email ? ` · ${order.customer.email}` : ''}
                     {order.cancelledBy ? ` · ${order.cancelReason ?? 'Cancelado'} (${order.cancelledBy}, ${formatDateTime(order.cancelledAt)})` : ''}
                   </p>
-                  <PaymentChip method={order.paymentMethod} />
+                  <PaymentChips order={order} />
+                  {onOpen && (
+                    <button type="button" className={`btn btn-secondary btn-sm ${styles.openBtn}`} onClick={() => onOpen(order)}>
+                      Abrir pedido
+                    </button>
+                  )}
+                  {order.cajaNotes && (
+                    <p className={styles.meta}><strong>Observación:</strong> {order.cajaNotes} ({order.cajaNotesBy})</p>
+                  )}
                   {order.errorDetail && <Notice kind="error">{order.errorDetail}</Notice>}
                   {order.status === 'confirmado' && !order.invoiceName && order.invoiceError && (
                     <>

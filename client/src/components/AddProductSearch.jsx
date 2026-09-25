@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { apiFetch } from '../lib/api.js';
-import { CONDITION_LABELS, formatMoney, defaultDeliveryFor } from '../lib/feriaLabels.js';
-import { Chip } from './ui.jsx';
+import { CONDITION_LABELS, formatMoney, defaultDeliveryFor, defaultLocationFor, hasDiscontinuoStock } from '../lib/feriaLabels.js';
+import { Chip, ProductPhoto } from './ui.jsx';
 import styles from './AddProductSearch.module.css';
 
 const SEARCH_MIN_CHARS = 6;
@@ -38,7 +38,7 @@ export default function AddProductSearch({ disabled, onAdd, onClose }) {
   }
 
   function add(product, condition) {
-    const location = product.stock.exhibicion > 0 ? 'exhibicion' : 'rolon';
+    const location = defaultLocationFor(condition, product.stock);
     onAdd({ sku: product.sku, condition, qty: 1, location, delivery: defaultDeliveryFor(location), modelo: product.modelo });
     setQuery('');
     setResults([]);
@@ -68,15 +68,17 @@ export default function AddProductSearch({ disabled, onAdd, onClose }) {
       {results.length > 0 && (
         <ul className={styles.results}>
           {results.map(p => {
-            const sinStock = !p.stock || p.stock.exhibicion + p.stock.rolon === 0;
+            const sinStock = !hasDiscontinuoStock(p.stock);
             return (
               <li key={p.sku} className={styles.result}>
-                <div>
+                <ProductPhoto sku={p.sku} alt={p.modelo} size={56} />
+                <div className={styles.info}>
                   <p className={styles.name}>{p.modelo}</p>
                   <p className={styles.meta}>{p.sku}</p>
                   <div className={styles.stock}>
                     {p.stock ? (
                       <>
+                        <span className={styles.stockLabel}>Stock discontinuo</span>
                         <Chip tone={p.stock.exhibicion > 0 ? 'done' : 'neutral'}>Exhibición {p.stock.exhibicion}</Chip>
                         <Chip tone={p.stock.rolon > 0 ? 'done' : 'neutral'}>Rolón {p.stock.rolon}</Chip>
                       </>
@@ -85,12 +87,12 @@ export default function AddProductSearch({ disabled, onAdd, onClose }) {
                 </div>
                 <div className={styles.buttons}>
                   {['falla', 'discontinuo'].map(condition => p.condiciones[condition].disponible && (
-                    <button key={condition} type="button" className="btn btn-secondary btn-sm"
-                      disabled={disabled || sinStock} onClick={() => add(p, condition)}>
-                      {CONDITION_LABELS[condition]} · <span className="num">{formatMoney(p.condiciones[condition].precioTabla)}</span>
+                    <button key={condition} type="button" className={`btn btn-sm ${styles.condBtn} cond-${condition}`}
+                      disabled={disabled || (condition === 'discontinuo' && sinStock)} onClick={() => add(p, condition)}>
+                      <span className={styles.condName}>{CONDITION_LABELS[condition]}</span> <span className="num">{formatMoney(p.condiciones[condition].precioTabla)}</span>
                     </button>
                   ))}
-                  {sinStock && p.stock && <span className={styles.noStock}>Sin stock</span>}
+                  {sinStock && p.stock && p.condiciones.discontinuo.disponible && <span className={styles.noStock}>Discontinuo sin stock</span>}
                 </div>
               </li>
             );

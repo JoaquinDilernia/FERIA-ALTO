@@ -10,18 +10,18 @@
   align-items: start;
   padding: var(--s-4) 0 var(--s-4) var(--s-4);
   border-top: 1px solid var(--line);
-  /* Barra de color a la izquierda: el estado se lee de un vistazo. */
-  border-left: 4px solid transparent;
 }
 .line:first-child { border-top: none; }
-.line-pendiente { border-left-color: var(--pending); }
-.line-enviado_feria { border-left-color: var(--sent); }
-.line-entregado { border-left-color: var(--done); }
-.line-eliminado { border-left-color: var(--removed); }
+/* El estado lo dice su etiqueta; entregado y eliminado además se atenúan. */
+.line-entregado { background: var(--wash); }
+.line-eliminado { background: var(--wash); }
 .line-eliminado .name,
 .line-eliminado .price { text-decoration: line-through; color: var(--ink-3); }
 
-.product { grid-area: product; min-width: 0; }
+.product { grid-area: product; min-width: 0; display: flex; gap: var(--s-3); align-items: flex-start; }
+.productText { min-width: 0; }
+.productText .meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px var(--s-2); margin-top: 2px; }
+.line-eliminado img { opacity: 0.4; }
 .where { grid-area: where; min-width: 0; }
 .status { grid-area: status; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
 .price { grid-area: price; font-weight: 600; text-align: right; padding-right: var(--s-2); }

@@ -6,8 +6,8 @@
   display: flex;
   align-items: center;
   gap: var(--s-4);
-  min-height: 64px;
-  padding: 0 var(--s-6);
+  min-height: 56px;
+  padding: 0 var(--s-5);
   background: var(--paper);
   border-bottom: 1px solid var(--line);
 }
@@ -15,10 +15,10 @@
 .brandLogo { height: 26px; width: auto; align-self: center; }
 /* El nombre del panel en minúscula con punto, como el logo. */
 .panelName { font-size: var(--fs-xl); font-weight: 600; letter-spacing: -0.01em; line-height: 1; }
-.tabs { display: flex; gap: var(--s-1); margin-left: var(--s-6); }
+.tabs { display: flex; gap: 2px; margin-left: var(--s-4); }
 .tab {
-  min-height: 40px;
-  padding: 0 var(--s-4);
+  min-height: 36px;
+  padding: 0 var(--s-3);
   border: none;
   border-radius: var(--r-pill);
   background: transparent;
@@ -123,3 +123,40 @@
 .orderNumbers { display: inline-flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
 .orderNumber { font-weight: 600; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
 .orderNumberLg { font-size: var(--fs-md); }
+
+/* ---- Foto de producto (cuadrada, fondo blanco como las fotos de Odoo) ---- */
+.photo {
+  display: block;
+  flex-shrink: 0;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+.photoFill { width: 100%; height: auto; border-radius: var(--r-md); }
+.photoEmpty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--wash);
+  color: var(--ink-3);
+}
+
+/* Etiqueta de condición: sólida (a diferencia de los chips de estado y de
+   pago, que son claros con punto) para que falla/discontinuo se vea de lejos. */
+.condition {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--cond);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.conditionLg { padding: 3px 10px; font-size: var(--fs-xs); }

@@ -1,60 +1,91 @@
-.page { min-height: 100vh; background: var(--paper); padding-bottom: var(--s-12); }
+/* Página pública /feria: el cliente entra por QR desde su celular.
+   Mobile-first: encabezado compacto y buscador fijo arriba para ir y venir
+   entre resultados; en pantallas grandes, tarjetas en grilla. */
+
+.page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--paper);
+  padding-bottom: max(var(--s-10), env(safe-area-inset-bottom));
+}
 
 .hero {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--s-3);
-  padding: var(--s-12) var(--s-4) var(--s-8);
+  gap: var(--s-2);
+  padding: max(var(--s-6), env(safe-area-inset-top)) var(--s-4) var(--s-4);
   background: var(--wash);
   text-align: center;
 }
-.logo { width: min(280px, 70vw); height: auto; }
-.title { font-size: var(--fs-3xl); font-weight: 600; letter-spacing: -0.03em; line-height: 1; margin-top: var(--s-4); }
-.subtitle { color: var(--ink-2); max-width: 36ch; }
+.logo { width: min(200px, 56vw); height: auto; }
+.title { font-size: var(--fs-2xl); font-weight: 600; letter-spacing: -0.02em; line-height: 1; margin-top: var(--s-2); text-wrap: balance; }
+.subtitle { color: var(--ink-2); font-size: var(--fs-sm); max-width: 32ch; text-wrap: balance; }
+
+/* El buscador queda pegado arriba mientras se recorren los resultados. */
+.searchBar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-1);
+  padding: var(--s-3) var(--s-4);
+  background: var(--wash);
+  border-bottom: 1px solid var(--line);
+}
 .search {
   width: 100%;
   max-width: 560px;
-  min-height: 64px;
-  margin-top: var(--s-3);
-  padding: 0 var(--s-6);
+  min-height: 56px;
+  padding: 0 var(--s-5);
   border: 2px solid var(--ink);
   border-radius: var(--r-pill);
   background: var(--paper);
-  font-size: var(--fs-lg);
+  font-size: 17px;
   text-align: center;
 }
 .search::placeholder { color: var(--ink-3); }
 .search:focus { outline: none; box-shadow: var(--focus); }
-.hint { min-height: 22px; color: var(--ink-3); font-size: var(--fs-sm); }
+.hint { min-height: 20px; color: var(--ink-2); font-size: var(--fs-sm); text-align: center; }
+.hint:empty { display: none; }
 
 .results {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 360px));
-  justify-content: center;
+  grid-template-columns: 1fr;
   gap: var(--s-4);
   max-width: 1100px;
   margin: 0 auto;
-  padding: var(--s-6) var(--s-4) 0;
+  padding: var(--s-4) var(--s-4) 0;
 }
 .card {
   display: flex;
   flex-direction: column;
   gap: var(--s-1);
-  padding: var(--s-5);
+  padding: var(--s-4);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
+  overflow: hidden;
 }
+/* Foto cuadrada a todo el ancho de la tarjeta, arriba de todo. En el
+   celular se limita el alto para que se vean los precios sin scrollear. */
+.cardPhoto { margin: calc(var(--s-4) * -1) calc(var(--s-4) * -1) var(--s-3); }
+.cardPhoto > * { border: none; border-bottom: 1px solid var(--line); border-radius: 0; max-height: 62vw; }
 .cardTitle { font-size: var(--fs-lg); font-weight: 600; line-height: 1.3; }
 .cardSku { color: var(--ink-3); font-size: var(--fs-sm); }
-.conditions { display: flex; flex-direction: column; gap: var(--s-4); margin-top: var(--s-3); }
-.conditionTitle { font-size: var(--fs-sm); font-weight: 600; color: var(--ink-2); margin-bottom: var(--s-2); }
+
+/* Cada condición en su recuadro con el color de falla / discontinuo. */
+.conditions { display: flex; flex-direction: column; gap: var(--s-3); margin-top: var(--s-3); }
+.condition { padding: var(--s-3); border: 1px solid var(--cond-line); border-top: 4px solid var(--cond); border-radius: var(--r-md); }
+.conditionTitle { margin-bottom: var(--s-2); }
 .prices { display: flex; flex-direction: column; gap: var(--s-1); }
 .price {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: var(--s-3);
+  min-height: 44px;
   padding: var(--s-2) var(--s-3);
   border-radius: var(--r-sm);
 }
@@ -66,8 +97,16 @@
 .tone-cash { background: var(--pay-cash-bg); color: var(--pay-cash); }
 .tone-mp { background: var(--pay-mp-bg); color: var(--pay-mp); }
 
-@media (max-width: 480px) {
-  .hero { padding-top: var(--s-8); }
-  .title { font-size: var(--fs-2xl); }
-  .results { grid-template-columns: 1fr; }
+/* ---- Tablet / escritorio ---- */
+@media (min-width: 640px) {
+  .hero { padding-top: var(--s-10); gap: var(--s-3); }
+  .logo { width: 260px; }
+  .title { font-size: var(--fs-3xl); margin-top: var(--s-3); }
+  .subtitle { font-size: var(--fs-md); max-width: 36ch; }
+  .searchBar { padding: var(--s-4); }
+  .search { min-height: 64px; font-size: var(--fs-lg); }
+  .results { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); padding: var(--s-6) var(--s-6) 0; }
+  .card { padding: var(--s-5); }
+  .cardPhoto { margin: calc(var(--s-5) * -1) calc(var(--s-5) * -1) var(--s-3); }
+  .cardPhoto > * { max-height: none; }
 }

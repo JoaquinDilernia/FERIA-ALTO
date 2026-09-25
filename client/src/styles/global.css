@@ -26,6 +26,15 @@
   --removed: #b42318;
   --removed-bg: #fdecea;
 
+  /* Condición del producto (colores de marca): falla rojo, discontinuo
+     gris azulado. El fondo y el borde son tintes claros del mismo tono. */
+  --falla: #a01c19;
+  --falla-bg: #f9ebea;
+  --falla-line: #e3b3b1;
+  --disc: #35454e;
+  --disc-bg: #edf0f2;
+  --disc-line: #bfc8cd;
+
   /* Medios de pago */
   --pay-transfer: #6a3fd1;
   --pay-transfer-bg: #f1ecfe;
@@ -141,4 +150,18 @@ ul, ol { list-style: none; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+
+/* Condición del producto: cualquier bloque con .cond-falla / .cond-discontinuo
+   expone --cond, --cond-bg y --cond-line para teñir bordes, fondos y textos. */
+.cond-falla { --cond: var(--falla); --cond-bg: var(--falla-bg); --cond-line: var(--falla-line); }
+.cond-discontinuo { --cond: var(--disc); --cond-bg: var(--disc-bg); --cond-line: var(--disc-line); }
+
+/* ---- Pantallas táctiles (celular) ----
+   iOS hace zoom al enfocar un campo de menos de 16px: en táctil van a 16px.
+   Los botones chicos crecen a 44px de alto (el mínimo cómodo para el dedo). */
+@media (pointer: coarse) {
+  .input, .select, textarea.input { font-size: 16px; }
+  .btn-sm { min-height: 44px; }
+  .select-sm { min-height: 44px; font-size: 16px; }
 }

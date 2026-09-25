@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react';
 import { apiFetch } from '../lib/api.js';
-import { CONDITION_LABELS, formatMoney } from '../lib/feriaLabels.js';
+import { formatMoney } from '../lib/feriaLabels.js';
 import logo from '../assets/logo-altorancho.png';
+import { ProductPhoto, ConditionChip } from '../components/ui.jsx';
 import styles from './FeriaPublico.module.css';
 
 const SEARCH_MIN_CHARS = 6;
@@ -43,6 +44,9 @@ export default function FeriaPublico() {
         <img src={logo} alt="Alto Rancho" className={styles.logo} />
         <h1 className={styles.title}>feria outlet.</h1>
         <p className={styles.subtitle}>Buscá el producto y mirá su precio según cómo pagues.</p>
+      </header>
+
+      <div className={styles.searchBar}>
         <label className="sr-only" htmlFor="q">Buscar producto</label>
         <input
           id="q"
@@ -58,17 +62,18 @@ export default function FeriaPublico() {
           {searching && 'Buscando…'}
           {!searching && typed >= SEARCH_MIN_CHARS && results.length === 0 && `No encontramos productos para “${query}”.`}
         </p>
-      </header>
+      </div>
 
       <main className={styles.results}>
         {results.map(p => (
           <article key={p.sku} className={styles.card}>
+            <div className={styles.cardPhoto}><ProductPhoto sku={p.sku} alt={p.modelo} fill /></div>
             <h2 className={styles.cardTitle}>{p.modelo}</h2>
             <p className={styles.cardSku}>{p.sku}{p.color ? ` · ${p.color.trim()}` : ''}</p>
             <div className={styles.conditions}>
               {Object.entries(p.precios).map(([condition, precios]) => (
-                <section key={condition} className={styles.condition}>
-                  <h3 className={styles.conditionTitle}>{CONDITION_LABELS[condition]}</h3>
+                <section key={condition} className={`${styles.condition} cond-${condition}`}>
+                  <h3 className={styles.conditionTitle}><ConditionChip condition={condition} large /></h3>
                   <ul className={styles.prices}>
                     {Object.entries(precios).map(([key, info]) => (
                       <li key={key} className={`${styles.price} ${styles[`tone-${PRICE_TONES[key]}`] ?? ''}`}>

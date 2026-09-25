@@ -15,6 +15,11 @@ const REFRESH_MS = 60 * 1000;
 const DEFAULT_HOURS = [9, 21];
 
 const fmtInt = (n) => n.toLocaleString('es-AR');
+// Los precios de la feria incluyen IVA (21 %, también el envío). Todo lo que
+// se muestra acá es sin IVA, que es lo que interesa al negocio; el margen ya
+// viene sin IVA del backend.
+const IVA = 1.21;
+const net = (value) => value / IVA;
 
 // Lista de barras horizontales de una sola medida: la barra da la proporción
 // y el número escrito da el valor exacto (no depende del color).
@@ -62,7 +67,7 @@ function HourChart({ byHour }) {
               {hover === h && (
                 <div className={styles.tooltip} role="status">
                   <strong>{h}:00 a {h + 1}:00</strong>
-                  <span className="num">{formatMoney(revenue)}</span>
+                  <span className="num">{formatMoney(net(revenue))}</span>
                   <span>{orders} {orders === 1 ? 'venta' : 'ventas'}</span>
                 </div>
               )}
@@ -78,7 +83,7 @@ function HourChart({ byHour }) {
       <table className="sr-only">
         <caption>Facturación por hora</caption>
         <tbody>
-          {hours.map(h => <tr key={h}><th>{h}:00</th><td>{formatMoney(byHour[h].revenue)}</td><td>{byHour[h].orders} ventas</td></tr>)}
+          {hours.map(h => <tr key={h}><th>{h}:00</th><td>{formatMoney(net(byHour[h].revenue))}</td><td>{byHour[h].orders} ventas</td></tr>)}
         </tbody>
       </table>
     </div>
@@ -130,6 +135,7 @@ export default function StatsView() {
       </div>
 
       <Notice kind="error">{error}</Notice>
+      <p className={styles.muted}>Todos los montos son sin IVA.</p>
 
       {stats && t.orders === 0 && (
         <EmptyState title="Todavía no hay ventas confirmadas en este período">
@@ -141,16 +147,17 @@ export default function StatsView() {
         <>
           <section className={styles.kpis}>
             <div className={`${styles.kpi} ${styles.kpiHero}`}>
-              <p className={styles.kpiLabel}>Facturación</p>
-              <p className={`num ${styles.kpiValue}`}>{formatMoney(t.revenue)}</p>
+              <p className={styles.kpiLabel}>Facturación sin IVA</p>
+              <p className={`num ${styles.kpiValue}`}>{formatMoney(net(t.revenue))}</p>
               <p className={styles.kpiSub}>
-                Productos {formatMoney(t.productsRevenue)}{t.shippingRevenue ? ` · Envíos ${formatMoney(t.shippingRevenue)}` : ''}
+                Productos {formatMoney(net(t.productsRevenue))}{t.shippingRevenue ? ` · Envíos ${formatMoney(net(t.shippingRevenue))}` : ''}
               </p>
+              <p className={styles.kpiSub}>Con IVA {formatMoney(t.revenue)}</p>
             </div>
             <div className={styles.kpi}>
               <p className={styles.kpiLabel}>Ventas</p>
               <p className={`num ${styles.kpiValue}`}>{fmtInt(t.orders)}</p>
-              <p className={styles.kpiSub}>Ticket promedio {formatMoney(t.avgTicket)}</p>
+              <p className={styles.kpiSub}>Ticket promedio {formatMoney(net(t.avgTicket))}</p>
             </div>
             <div className={styles.kpi}>
               <p className={styles.kpiLabel}>Unidades</p>
@@ -159,11 +166,11 @@ export default function StatsView() {
             </div>
             <div className={styles.kpi}>
               <p className={styles.kpiLabel}>Descuento por medio de pago</p>
-              <p className={`num ${styles.kpiValue}`}>{formatMoney(t.discount)}</p>
+              <p className={`num ${styles.kpiValue}`}>{formatMoney(net(t.discount))}</p>
               <p className={styles.kpiSub}>sobre el precio de lista</p>
             </div>
             <div className={styles.kpi}>
-              <p className={styles.kpiLabel}>Margen sin IVA</p>
+              <p className={styles.kpiLabel}>Margen</p>
               <p className={`num ${styles.kpiValue}`}>{t.margin == null ? '—' : formatMoney(t.margin)}</p>
               <p className={styles.kpiSub}>
                 {t.margin == null
@@ -180,7 +187,7 @@ export default function StatsView() {
               <BarList
                 emptyText="Sin ventas."
                 rows={stats.bySeller.map(s => ({
-                  key: s.name, label: s.name, value: s.revenue,
+                  key: s.name, label: s.name, value: net(s.revenue),
                   sub: `${s.orders} ${s.orders === 1 ? 'venta' : 'ventas'} · ${s.units} u.`,
                 }))}
               />
@@ -191,8 +198,8 @@ export default function StatsView() {
               <BarList
                 emptyText="Sin ventas."
                 rows={stats.byPayment.map(p => ({
-                  key: p.method, label: <PaymentChip method={p.method} />, value: p.revenue,
-                  sub: `${p.orders} ${p.orders === 1 ? 'venta' : 'ventas'}${p.discount ? ` · descuento ${formatMoney(p.discount)}` : ''}`,
+                  key: p.method, label: <PaymentChip method={p.method} />, value: net(p.revenue),
+                  sub: `${p.orders} ${p.orders === 1 ? 'venta' : 'ventas'}${p.discount ? ` · descuento ${formatMoney(net(p.discount))}` : ''}`,
                 }))}
               />
             </article>
@@ -207,8 +214,8 @@ export default function StatsView() {
               <BarList
                 emptyText="Sin ventas."
                 rows={stats.topProducts.map(p => ({
-                  key: p.sku, label: `${p.modelo} · ${p.sku}`, value: p.revenue,
-                  sub: `${p.units} u.${p.margin != null ? ` · margen sin IVA ${formatMoney(p.margin)}` : ''}`,
+                  key: p.sku, label: `${p.modelo} · ${p.sku}`, value: net(p.revenue),
+                  sub: `${p.units} u.${p.margin != null ? ` · margen ${formatMoney(p.margin)}` : ''}`,
                 }))}
               />
             </article>
@@ -218,14 +225,14 @@ export default function StatsView() {
               <BarList
                 emptyText="Sin ventas."
                 rows={Object.entries(stats.byCondition).map(([k, v]) => ({
-                  key: k, label: CONDITION_LABELS[k] ?? k, value: v.revenue, sub: `${v.units} u.`,
+                  key: k, label: CONDITION_LABELS[k] ?? k, value: net(v.revenue), sub: `${v.units} u.`,
                 })).sort((a, b) => b.value - a.value)}
               />
               <h3 className={`${styles.cardTitle} ${styles.cardTitleSpaced}`}>Por forma de entrega</h3>
               <BarList
                 emptyText="Sin ventas."
                 rows={Object.entries(stats.byDelivery).map(([k, v]) => ({
-                  key: k, label: DELIVERY_LABELS[k] ?? 'Sin dato', value: v.revenue, sub: `${v.units} u.`,
+                  key: k, label: DELIVERY_LABELS[k] ?? 'Sin dato', value: net(v.revenue), sub: `${v.units} u.`,
                 })).sort((a, b) => b.value - a.value)}
               />
             </article>

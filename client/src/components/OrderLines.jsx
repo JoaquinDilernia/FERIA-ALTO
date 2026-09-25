@@ -1,8 +1,8 @@
 import {
-  LOCATION_LABELS, DELIVERY_LABELS, RESERVING_STATUSES, CONDITION_LABELS, formatDateTime, formatMoney,
-  deliveryAllowed, defaultDeliveryFor,
+  LOCATION_LABELS, DELIVERY_LABELS, RESERVING_STATUSES, formatDateTime, formatMoney,
+  deliveryAllowed, defaultDeliveryFor, locationsFor, controlsStock,
 } from '../lib/feriaLabels.js';
-import { LineStatusChip } from './ui.jsx';
+import { LineStatusChip, ProductPhoto, ConditionChip } from './ui.jsx';
 import styles from './OrderLines.module.css';
 
 function statusDetail(line) {
@@ -38,26 +38,30 @@ export default function OrderLines({ lines, stockBySku = {}, disabled = false, o
         return (
           <li key={l.lineId || i} className={`${styles.line} ${styles[`line-${l.status}`] ?? ''}`}>
             <div className={styles.product}>
-              <p className={styles.name}>{l.modelo}</p>
-              <p className={styles.meta}>
-                {l.sku} · {CONDITION_LABELS[l.condition] ?? l.condition}
-                {!(onQtyChange && reserving) && ` · ${l.qty} ${l.qty === 1 ? 'unidad' : 'unidades'}`}
-              </p>
-              {onQtyChange && reserving && (
-                <div className={styles.stepper} role="group" aria-label={`Cantidad de ${l.modelo}`}>
-                  <button type="button" disabled={disabled || l.qty <= 1} onClick={() => onQtyChange(l, l.qty - 1)} aria-label="Una menos">−</button>
-                  <span className="num">{l.qty}</span>
-                  <button type="button" disabled={disabled} onClick={() => onQtyChange(l, l.qty + 1)} aria-label="Una más">+</button>
-                </div>
-              )}
+              <ProductPhoto sku={l.sku} alt={l.modelo} size={56} />
+              <div className={styles.productText}>
+                <p className={styles.name}>{l.modelo}</p>
+                <p className={styles.meta}>
+                  <ConditionChip condition={l.condition} /> {l.sku}
+                  {!(onQtyChange && reserving) && ` · ${l.qty} ${l.qty === 1 ? 'unidad' : 'unidades'}`}
+                </p>
+                {onQtyChange && reserving && (
+                  <div className={styles.stepper} role="group" aria-label={`Cantidad de ${l.modelo}`}>
+                    <button type="button" disabled={disabled || l.qty <= 1} onClick={() => onQtyChange(l, l.qty - 1)} aria-label="Una menos">−</button>
+                    <span className="num">{l.qty}</span>
+                    <button type="button" disabled={disabled} onClick={() => onQtyChange(l, l.qty + 1)} aria-label="Una más">+</button>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className={styles.where}>
               {onEdit && reserving ? (
                 <div className={styles.editors}>
-                  <select className="select select-sm" value={l.location} disabled={disabled}
+                  {/* Falla sale siempre de Fallados: no hay ubicación para elegir. */}
+                  <select className="select select-sm" value={l.location} disabled={disabled || l.condition === 'falla'}
                     onChange={(e) => changeLocation(l, e.target.value)} aria-label="Sale de">
-                    {Object.entries(LOCATION_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    {locationsFor(l.condition).map(value => <option key={value} value={value}>{LOCATION_LABELS[value]}</option>)}
                   </select>
                   <select className="select select-sm" value={l.delivery} disabled={disabled}
                     onChange={(e) => onEdit(l, { delivery: e.target.value })} aria-label="Entrega">
@@ -72,7 +76,7 @@ export default function OrderLines({ lines, stockBySku = {}, disabled = false, o
                   <span> desde {LOCATION_LABELS[l.location] ?? '—'}</span>
                 </p>
               )}
-              {stock && reserving && (
+              {stock && reserving && controlsStock(l.location) && (
                 <p className={styles.meta}>Disponible · Exhibición {stock.exhibicion} · Rolón {stock.rolon}</p>
               )}
             </div>

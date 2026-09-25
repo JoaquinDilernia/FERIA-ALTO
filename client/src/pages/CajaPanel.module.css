@@ -1,23 +1,25 @@
 .page { min-height: 100vh; display: flex; flex-direction: column; background: var(--paper); }
 
-/* ---- Pedidos: cola a la izquierda, detalle a la derecha ---- */
+/* ---- Pedidos: cola a la izquierda, detalle a la derecha ----
+   Pensado para una notebook común (~1366×768): la venta entera, del detalle
+   al botón de confirmar, tiene que entrar con poco scroll. */
 .pedidos {
   flex: 1;
   display: grid;
-  grid-template-columns: 340px minmax(0, 1fr);
+  grid-template-columns: 300px minmax(0, 1fr);
   min-height: 0;
 }
 .queue {
   display: flex;
   flex-direction: column;
   gap: var(--s-3);
-  padding: var(--s-5) var(--s-4);
+  padding: var(--s-4) var(--s-3);
   background: var(--wash);
   border-right: 1px solid var(--line);
   overflow-y: auto;
-  max-height: calc(100vh - 64px);
+  max-height: calc(100vh - 56px);
   position: sticky;
-  top: 64px;
+  top: 56px;
 }
 .queueTitle { display: flex; align-items: center; gap: var(--s-2); font-size: var(--fs-lg); font-weight: 600; padding: 0 var(--s-1); }
 .queueCount {
@@ -55,13 +57,13 @@
 .detail {
   display: flex;
   flex-direction: column;
-  gap: var(--s-4);
-  max-width: 980px;
+  gap: var(--s-3);
+  max-width: 1080px;
   width: 100%;
-  padding: var(--s-6) var(--s-8);
+  padding: var(--s-4) var(--s-6) var(--s-6);
 }
 .detailHead { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s-4); }
-.detailName { font-size: var(--fs-2xl); font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; }
+.detailName { font-size: var(--fs-xl); font-weight: 600; letter-spacing: -0.01em; line-height: 1.2; }
 .detailMeta { color: var(--ink-3); font-size: var(--fs-sm); margin-top: 2px; }
 .detailChips { display: flex; flex-wrap: wrap; gap: var(--s-2); justify-content: flex-end; }
 
@@ -76,7 +78,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--s-3);
-  padding: var(--s-5);
+  padding: var(--s-4) var(--s-5);
   border-radius: var(--r-lg);
   background: var(--wash);
 }
@@ -93,10 +95,10 @@
   font-size: var(--fs-lg);
   font-weight: 500;
 }
-.charge > span:last-child { font-size: var(--fs-3xl); font-weight: 600; letter-spacing: -0.03em; line-height: 1; }
+.charge > span:last-child { font-size: var(--fs-2xl); font-weight: 600; letter-spacing: -0.02em; line-height: 1; }
 .chargeMethod { color: var(--ink-3); font-size: var(--fs-sm); font-weight: 400; }
 .actions { display: flex; gap: var(--s-3); justify-content: flex-end; margin-top: var(--s-2); }
-.confirmBtn { min-width: 260px; }
+.confirmBtn { min-width: 240px; }
 
 /* ---- Medio de pago (editable antes de confirmar) ---- */
 .payPicker { display: flex; flex-direction: column; gap: var(--s-2); }
@@ -142,6 +144,7 @@
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
 }
+.rebajaHead { display: flex; gap: var(--s-4); align-items: center; }
 .rebajaName { font-size: var(--fs-lg); font-weight: 600; }
 .rebajaSection {
   display: flex;
@@ -150,8 +153,8 @@
   padding-top: var(--s-3);
   border-top: 1px solid var(--line);
 }
-.rebajaCondition { font-size: var(--fs-sm); color: var(--ink-2); }
-.levelCards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-2); }
+.rebajaCondition { display: flex; align-items: center; gap: var(--s-2); font-size: var(--fs-sm); color: var(--ink-2); }
+.levelCards { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: var(--s-2); }
 .levelCard {
   display: flex;
   flex-direction: column;
@@ -186,3 +189,39 @@
 .shipping { display: flex; justify-content: space-between; align-items: center; gap: var(--s-4); }
 .shippingText { min-width: 0; }
 .addBtn { align-self: flex-start; }
+
+/* ---- Pago dividido ---- */
+.splitBtn { align-self: flex-start; }
+.splitSummary { display: flex; flex-direction: column; gap: var(--s-2); }
+.splitSummary ul { display: flex; flex-direction: column; gap: 2px; }
+.splitSummary li { display: flex; justify-content: space-between; font-size: var(--fs-sm); }
+.splitSummary li .num { font-weight: 600; }
+
+/* ---- Observación del pedido ---- */
+.orderNotes { display: flex; flex-direction: column; gap: var(--s-2); }
+.orderNotes .btn { align-self: flex-start; }
+
+/* ---- Rebaja 3: precio manual ---- */
+.levelCardManual { border-style: dashed; cursor: default; }
+.levelCardManual.levelCardActive { border-style: solid; }
+.manualInput { width: 100%; min-height: 40px; font-size: var(--fs-lg); font-weight: 600; }
+.levelCardActive .manualInput { background: var(--paper); color: var(--ink); }
+
+/* ---- Filtro de rebajas ---- */
+.rebajaFilters { display: flex; gap: var(--s-2); flex-wrap: wrap; }
+.rebajaFilter {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 40px;
+  padding: 0 var(--s-4);
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  background: var(--paper);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+}
+.rebajaFilter .num { color: var(--ink-3); font-weight: 600; }
+.rebajaFilter:hover { border-color: var(--ink); }
+.rebajaFilterActive, .rebajaFilterActive:hover { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.rebajaFilterActive .num { color: var(--paper); }

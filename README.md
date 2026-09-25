@@ -33,7 +33,8 @@ feria, cliente por DNI y el panel público).
   corre los reportes. Variables de entorno nuevas a cargar en ese servicio:
   `FERIA_AUTH_SECRET`, `ODOO_FERIA_TEAM_NAME`, `ODOO_FERIA_PRICELIST_NAME`,
   `ODOO_FERIA_WAREHOUSE_ID`, `ODOO_FERIA_LOCATION_EXHIBICION_ID`,
-  `ODOO_FERIA_LOCATION_ROLON_ID`, `ODOO_FERIA_SHIPPING_PRODUCT_NAME`
+  `ODOO_FERIA_LOCATION_ROLON_ID`, `ODOO_FERIA_LOCATION_FALLADOS_ID`,
+  `ODOO_FERIA_SHIPPING_PRODUCT_NAME`
   (ver `Reportes/backend/.env.example`).
 - **Frontend**: deploy propio, liviano (build estático con `npm run build`
   en `client/`), con `VITE_API_URL` apuntando a la URL pública del servicio
@@ -61,6 +62,10 @@ Antes del primer uso real:
   fondo inicial (sin caja abierta no se confirman ventas).
 - Para facturar automáticamente (Factura B, Pto. 9 Web), cargar
   `ODOO_FERIA_INVOICE_JOURNAL_ID=38` en el backend. Vacío, no factura.
-- El stock sale de Odoo en vivo (almacén Feria: `FER/Stock/exhibicion` y
-  `FER/Stock/Rolon`); la columna Stock del Excel ya no se usa. Nadie debe
-  sacar stock del almacén Feria por fuera de la app.
+- El stock de **discontinuo** sale de Odoo en vivo (almacén Feria:
+  `FER/Stock/exhibicion` y `FER/Stock/Rolon`); la columna Stock del Excel ya
+  no se usa. Nadie debe sacar stock del almacén Feria por fuera de la app.
+- **Falla** sale siempre de `FER/Stock/Fallados` (id 429): stock ficticio que
+  puede quedar en negativo. La app no lo controla ni lo reserva; solo lo
+  descuenta al entregar. Se puede llevar ahora, retirar en feria o enviar
+  (no retirar en Rolón).

@@ -68,3 +68,7 @@
 }
 .shipping { position: relative; }
 .shippingEdit { position: absolute; top: var(--s-3); right: var(--s-3); }
+
+/* Cancelados: aparte de las entregas, en rojo. */
+.filterCancelled:not(.filterActive) { border-color: var(--removed-bg); color: var(--removed); }
+.filterCancelled.filterActive, .filterCancelled.filterActive:hover { border-color: var(--removed); background: var(--removed); }

@@ -1,8 +1,31 @@
-export const LOCATION_LABELS = { exhibicion: 'Exhibición', rolon: 'Rolón' };
+export const LOCATION_LABELS = { exhibicion: 'Exhibición', rolon: 'Rolón', fallados: 'Fallados' };
+
+// Misma regla que el backend (feriaLines.mjs): falla sale siempre de
+// Fallados, sin control de stock (stock ficticio en Odoo, puede quedar en
+// negativo); discontinuo sale de Exhibición o Rolón, con stock controlado.
+export const STOCK_LOCATIONS = ['exhibicion', 'rolon'];
+
+export function locationsFor(condition) {
+  return condition === 'falla' ? ['fallados'] : STOCK_LOCATIONS;
+}
+
+export function controlsStock(location) {
+  return STOCK_LOCATIONS.includes(location);
+}
+
+export function defaultLocationFor(condition, stock) {
+  if (condition === 'falla') return 'fallados';
+  return stock?.exhibicion > 0 ? 'exhibicion' : 'rolon';
+}
+
+// Discontinuo necesita stock en Exhibición o Rolón; falla se vende siempre.
+export function hasDiscontinuoStock(stock) {
+  return !!stock && stock.exhibicion + stock.rolon > 0;
+}
 
 export const DELIVERY_LABELS = {
-  ahora: 'Se lleva ahora',
-  retira_feria: 'Retira en feria',
+  ahora: 'Me llevo ahora (caja)',
+  retira_feria: 'Retira en depósito feria',
   retira_rolon: 'Retira en Rolón',
   envio: 'Envío a domicilio',
 };
@@ -23,7 +46,7 @@ export function paymentMethodInfo(value) {
 
 // Mismo valor que SHIPPING_COST del backend (feriaPricing.mjs): por pedido,
 // con IVA, sin descuento por medio de pago.
-export const SHIPPING_COST = 10000;
+export const SHIPPING_COST = 25000;
 
 // Estados de línea que todavía tienen stock reservado (falta entregar).
 export const RESERVING_STATUSES = ['pendiente', 'enviado_feria'];
@@ -77,15 +100,35 @@ export function orderTotal(order) {
   return orderBreakdown(order).total;
 }
 
-// Misma regla que validateLineDelivery del backend: "Se lleva ahora" sale de
-// Exhibición y "Retira en Rolón" sale de Rolón; retira en feria y envío,
-// de cualquiera de las dos.
+// Misma regla que validateLineDelivery del backend: "Me llevo ahora" sale de
+// Exhibición o Fallados (los dos están en la feria) y "Retira en Rolón" sale
+// de Rolón; retira en feria y envío, de cualquier ubicación.
 export function deliveryAllowed(delivery, location) {
-  if (delivery === 'ahora') return location === 'exhibicion';
+  if (delivery === 'ahora') return location === 'exhibicion' || location === 'fallados';
   if (delivery === 'retira_rolon') return location === 'rolon';
   return true;
 }
 
 export function defaultDeliveryFor(location) {
-  return location === 'exhibicion' ? 'ahora' : 'retira_rolon';
+  return location === 'rolon' ? 'retira_rolon' : 'ahora';
+}
+
+// Lee un monto escrito a mano ("20000", "20.000", "20000,50"). null si no es válido.
+export function readAmount(text) {
+  const raw = String(text).trim().replace(/[$\s]/g, '');
+  // Con coma, la coma es decimal y los puntos son de miles; sin coma, los
+  // puntos son de miles solo si agrupan de a tres (20.000).
+  const clean = raw.includes(',') ? raw.replace(/\./g, '').replace(',', '.')
+    : /^\d{1,3}(\.\d{3})+$/.test(raw) ? raw.replace(/\./g, '') : raw;
+  if (clean === '') return null;
+  const n = Number(clean);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+// Mismo orden que el backend (feriaPricing.mjs): con el pago dividido, a Odoo
+// va el medio de mayor costo y ese fija el precio de todo el pedido.
+const ODOO_PAYMENT_PRIORITY = ['mp_3_cuotas', 'mp_1_cuota', 'mp_debito', 'transferencia', 'efectivo'];
+
+export function principalPaymentMethod(methods) {
+  return ODOO_PAYMENT_PRIORITY.find(m => methods.includes(m)) ?? null;
 }

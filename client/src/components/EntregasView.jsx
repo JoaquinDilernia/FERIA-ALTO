@@ -1,27 +1,31 @@
 import { useState, useEffect, useCallback } from 'react';
 import { apiFetch } from '../lib/api.js';
-import { RESERVING_STATUSES, formatDateTime } from '../lib/feriaLabels.js';
+import { RESERVING_STATUSES, LOCATION_LABELS, formatDateTime } from '../lib/feriaLabels.js';
 import OrderLines from './OrderLines.jsx';
-import { PaymentChip, OrderNumbers, Notice, EmptyState } from './ui.jsx';
+import { PaymentChips, OrderNumbers, Notice, EmptyState } from './ui.jsx';
 import ShippingForm from './ShippingForm.jsx';
+import CancelledItems, { pendingRestockCount } from './CancelledItems.jsx';
 import styles from './EntregasView.module.css';
 
 const FILTERS = [
   // Lo que el cliente viene a buscar a la feria (ya enviado o todavía no).
-  { value: 'retiros_feria', label: 'Retiros en feria', match: l => l.delivery === 'retira_feria' },
+  { value: 'retiros_feria', label: 'Retiros en depósito feria', match: l => l.delivery === 'retira_feria' },
   // Lo que se lleva ahora y quedó pendiente (falló la entrega automática al
-  // confirmar, o caja lo cambió a 'Se lleva ahora' después): sin esta pestaña
+  // confirmar, o caja lo cambió a 'Me llevo ahora' después): sin esta pestaña
   // esas líneas no aparecerían en ningún lado y su reserva quedaría trabada.
-  { value: 'ahora', label: 'Se lleva ahora', match: l => l.delivery === 'ahora' },
+  { value: 'ahora', label: 'Me llevo ahora (caja)', match: l => l.delivery === 'ahora' },
   // Lo que Logística todavía tiene que mandar de Rolón a la feria.
   { value: 'mandar_feria', label: 'Mandar a feria', match: l => l.delivery === 'retira_feria' && l.status === 'pendiente' },
   { value: 'retiro_rolon', label: 'Retiro en Rolón', match: l => l.delivery === 'retira_rolon' },
   { value: 'envio', label: 'Envío a domicilio', match: l => l.delivery === 'envio' },
 ];
+// Pestaña aparte (otros pedidos y otra acción): lo cancelado que hay que
+// devolver a stock.
+const CANCELLED = 'cancelados';
 
 const EMPTY_TEXT = {
-  retiros_feria: 'Nadie tiene que pasar a retirar por la feria.',
-  ahora: 'No quedó nada de “Se lleva ahora” sin entregar.',
+  retiros_feria: 'Nadie tiene que pasar a retirar por el depósito de la feria.',
+  ahora: 'No quedó nada de “Me llevo ahora” sin entregar.',
   mandar_feria: 'No hay nada para mandar de Rolón a la feria.',
   retiro_rolon: 'No hay retiros pendientes en Rolón.',
   envio: 'No hay envíos a domicilio pendientes.',
@@ -33,6 +37,7 @@ function pendingLines(order, filter) {
 
 export default function EntregasView({ initialFilter }) {
   const [orders, setOrders] = useState([]);
+  const [cancelled, setCancelled] = useState([]);
   const [filter, setFilter] = useState(initialFilter);
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState('');
@@ -49,11 +54,13 @@ export default function EntregasView({ initialFilter }) {
   // se avisa en vez de mostrar todo en 0.
   const load = useCallback(async () => {
     try {
-      const [{ orders }, pendientes] = await Promise.all([
+      const [{ orders }, pendientes, cancelados] = await Promise.all([
         apiFetch('/api/feria/logistics/orders'),
         apiFetch('/api/feria/orders?status=pendiente'),
+        apiFetch('/api/feria/logistics/cancelled'),
       ]);
       setOrders(orders);
+      setCancelled(cancelados.orders);
       setToConfirm(pendientes.orders.length);
       setOffline(false);
     } catch {
@@ -127,7 +134,8 @@ export default function EntregasView({ initialFilter }) {
   const counts = Object.fromEntries(FILTERS.map(f => [
     f.value, orders.filter(matchesSearch).reduce((n, o) => n + pendingLines(o, f).length, 0),
   ]));
-  const visible = orders
+  const cancelledCount = pendingRestockCount(cancelled.filter(matchesSearch));
+  const visible = filter === CANCELLED ? [] : orders
     .filter(matchesSearch)
     .map(o => ({ order: o, lines: pendingLines(o, current) }))
     .filter(x => x.lines.length > 0);
@@ -149,6 +157,16 @@ export default function EntregasView({ initialFilter }) {
               <span className={`num ${styles.filterCount} ${counts[f.value] ? styles.filterCountOn : ''}`}>{counts[f.value]}</span>
             </button>
           ))}
+          <button
+            type="button"
+            role="tab"
+            aria-selected={filter === CANCELLED}
+            className={`${styles.filter} ${styles.filterCancelled} ${filter === CANCELLED ? styles.filterActive : ''}`}
+            onClick={() => setFilter(CANCELLED)}
+          >
+            Cancelados
+            <span className={`num ${styles.filterCount} ${cancelledCount ? styles.filterCountOn : ''}`}>{cancelledCount}</span>
+          </button>
         </div>
         <input
           className={`input ${styles.search}`}
@@ -167,7 +185,15 @@ export default function EntregasView({ initialFilter }) {
       )}
       <Notice kind={notice.kind || 'info'} onClose={() => setNotice({ kind: '', text: '' })}>{notice.text}</Notice>
 
-      {visible.length === 0 && <EmptyState title="Todo al día">{EMPTY_TEXT[filter]}</EmptyState>}
+      {filter === CANCELLED ? (
+        <CancelledItems
+          orders={cancelled}
+          search={matchesSearch}
+          busy={busy}
+          onRestock={(order, l) => run(order, l, '/restock', { method: 'POST' },
+            `${l.modelo} devuelto a stock en ${LOCATION_LABELS[l.location] ?? l.location}.`)}
+        />
+      ) : visible.length === 0 && <EmptyState title="Todo al día">{EMPTY_TEXT[filter]}</EmptyState>}
 
       <div className={styles.orders}>
         {visible.map(({ order, lines }) => (
@@ -177,11 +203,11 @@ export default function EntregasView({ initialFilter }) {
                 <OrderNumbers order={order} />
                 <h3 className={styles.customer}>{order.customer.name}</h3>
                 <p className={styles.meta}>
-                  DNI {order.customer.docNumber}{order.customer.phone ? ` · Tel. ${order.customer.phone}` : ''} · Vendió {order.sellerName} · {formatDateTime(order.createdAt)}
+                  DNI {order.customer.docNumber}{order.customer.phone ? ` · Tel. ${order.customer.phone}` : ''}{order.customer.email ? ` · ${order.customer.email}` : ''} · Vendió {order.sellerName} · {formatDateTime(order.createdAt)}
                   {order.odooOrderId ? ` · Odoo #${order.odooOrderId}` : ''}
                 </p>
               </div>
-              <PaymentChip method={order.paymentMethod} />
+              <PaymentChips order={order} />
             </header>
 
             {shippingEdit?.orderId === order.id && (

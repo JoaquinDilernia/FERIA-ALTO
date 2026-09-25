@@ -1,7 +1,9 @@
+import { useState } from 'react';
+import { BASE_URL } from '../lib/api.js';
 import { clearSession } from '../lib/session.js';
 import logoAlto from '../assets/logo-alto.png';
 import logoAltorancho from '../assets/logo-altorancho.png';
-import { LINE_STATUS, ORDER_STATUS, paymentMethodInfo } from '../lib/feriaLabels.js';
+import { LINE_STATUS, ORDER_STATUS, CONDITION_LABELS, paymentMethodInfo, formatMoney } from '../lib/feriaLabels.js';
 import styles from './ui.module.css';
 
 export function logout() {
@@ -65,6 +67,17 @@ export function PaymentChip({ method, large }) {
   );
 }
 
+// Cómo se paga el pedido: un chip por medio, con su monto si el pago está
+// dividido (a Odoo va solo el principal, order.paymentMethod).
+export function PaymentChips({ order, large }) {
+  if (!order.payments?.length) return <PaymentChip method={order.paymentMethod} large={large} />;
+  return order.payments.map(p => (
+    <Chip key={p.method} tone={paymentMethodInfo(p.method).tone} large={large}>
+      {paymentMethodInfo(p.method).label} {formatMoney(p.amount)}
+    </Chip>
+  ));
+}
+
 // Número interno (F-0012) y, una vez confirmado, el del pedido en Odoo.
 // Los pedidos viejos sin número muestran el comienzo de su id.
 export function OrderNumbers({ order, large }) {
@@ -112,3 +125,42 @@ export function LoginShell({ title, hint, onSubmit, children }) {
 }
 
 export const uiStyles = styles;
+
+// Foto cuadrada del producto (la de Odoo, servida por el backend). Si no
+// tiene foto, un recuadro neutro del mismo tamaño para que las listas no
+// salten. `size` en px; con `fill` ocupa el ancho del contenedor.
+export function ProductPhoto({ sku, alt = '', size = 64, fill = false }) {
+  const [failed, setFailed] = useState(false);
+  const box = fill ? undefined : { width: size, height: size };
+  if (failed || !sku) {
+    return (
+      <span className={`${styles.photo} ${styles.photoEmpty} ${fill ? styles.photoFill : ''}`} style={box} aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="40%" height="40%" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <rect x="3" y="4" width="18" height="16" rx="2" />
+          <circle cx="9" cy="10" r="1.8" />
+          <path d="M21 16l-5-5-8 8" />
+        </svg>
+      </span>
+    );
+  }
+  return (
+    <img
+      className={`${styles.photo} ${fill ? styles.photoFill : ''}`}
+      style={box}
+      src={`${BASE_URL}/api/feria/products/${encodeURIComponent(sku)}/image`}
+      alt={alt}
+      loading="lazy"
+      decoding="async"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+// Falla en rojo, discontinuo en gris azulado (ver --falla / --disc).
+export function ConditionChip({ condition, large = false }) {
+  return (
+    <span className={`${styles.condition} ${large ? styles.conditionLg : ''} cond-${condition}`}>
+      {CONDITION_LABELS[condition] ?? condition}
+    </span>
+  );
+}

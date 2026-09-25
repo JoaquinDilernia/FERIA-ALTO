@@ -1,44 +1,30 @@
 import { getSession } from '../lib/session.js';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { apiFetch } from '../lib/api.js';
 import {
   LOCATION_LABELS, DELIVERY_LABELS, SHIPPING_COST, PAYMENT_METHODS, CONDITION_LABELS, formatMoney,
-  deliveryAllowed, defaultDeliveryFor,
+  deliveryAllowed, defaultDeliveryFor, locationsFor, defaultLocationFor, hasDiscontinuoStock,
 } from '../lib/feriaLabels.js';
-import { AppHeader, Chip, Notice, EmptyState } from '../components/ui.jsx';
+import { AppHeader, Chip, Notice, EmptyState, ProductPhoto, ConditionChip } from '../components/ui.jsx';
 import styles from './VendedorPanel.module.css';
 
 const SEARCH_MIN_CHARS = 6;
-const EMPTY_CUSTOMER = { name: '', docNumber: '', phone: '' };
+const EMPTY_CUSTOMER = { name: '', docNumber: '', phone: '', email: '' };
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const EMPTY_SHIPPING = { street: '', number: '', floor: '', city: '', zip: '', phone: '', notes: '' };
 const REQUIRED_SHIPPING = ['street', 'number', 'city', 'zip', 'phone'];
+// Lo que el vendedor va cargando de cada carrito (cliente, pago, envío) vive
+// en la tablet hasta mandarlo a caja; los productos y el stock, en el servidor.
+const EMPTY_DRAFT = { customer: EMPTY_CUSTOMER, paymentMethod: '', shipping: EMPTY_SHIPPING, lookup: { kind: '', text: '' } };
+// Carrito todavía sin crear: se crea (y toma número) con el primer producto.
+const NEW_CART = 'nuevo';
 
 // Devuelve null mientras no haya medio de pago elegido — el descuento depende
 // del medio de pago, así que antes de elegirlo no hay precio final que mostrar.
-function finalUnitPrice(tablePrice, paymentMethod) {
+function finalUnitPrice(listPrice, paymentMethod) {
   const method = PAYMENT_METHODS.find(m => m.value === paymentMethod);
   if (!method) return null;
-  return Math.round(tablePrice * (1 - method.discountPct / 100));
-}
-
-// Dos líneas del mismo SKU en la misma ubicación compiten por el mismo stock:
-// se suman antes de comparar contra el disponible. Devuelve, por índice de
-// línea, el problema a mostrar en esa línea.
-function stockProblemsByLine(lines) {
-  const requested = new Map();
-  for (const l of lines) {
-    const key = `${l.sku}__${l.location}`;
-    requested.set(key, (requested.get(key) || 0) + l.qty);
-  }
-  const problems = {};
-  lines.forEach((l, i) => {
-    const qty = requested.get(`${l.sku}__${l.location}`);
-    const available = l.stock?.[l.location] ?? 0;
-    if (qty > available) {
-      problems[i] = `En ${LOCATION_LABELS[l.location]} hay ${available} y el pedido lleva ${qty}.`;
-    }
-  });
-  return problems;
+  return Math.round(listPrice * (1 - method.discountPct / 100));
 }
 
 export default function VendedorPanel() {
@@ -46,15 +32,63 @@ export default function VendedorPanel() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
-  const [lines, setLines] = useState([]);
-  const [customer, setCustomer] = useState(EMPTY_CUSTOMER);
-  const [lookup, setLookup] = useState({ kind: '', text: '' });
-  const [paymentMethod, setPaymentMethod] = useState('');
-  const [shipping, setShipping] = useState(EMPTY_SHIPPING);
-  const [sending, setSending] = useState(false);
+  const [carts, setCarts] = useState([]);
+  const [activeId, setActiveId] = useState(NEW_CART);
+  const [drafts, setDrafts] = useState({});
+  const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState({ kind: '', text: '' });
   const searchTimeout = useRef(null);
   const lookupTimeout = useRef(null);
+
+  // Al entrar (o recargar la tablet) se recuperan los carritos abiertos.
+  useEffect(() => {
+    apiFetch('/api/feria/carts')
+      .then(({ carts: open }) => {
+        setCarts(open);
+        if (open.length) setActiveId(open[open.length - 1].id);
+      })
+      .catch(err => setNotice({ kind: 'error', text: `No se pudieron cargar tus carritos: ${err.message}` }));
+  }, []);
+
+  const cart = carts.find(c => c.id === activeId) ?? null;
+  const lines = cart?.lines ?? [];
+  const draft = drafts[activeId] ?? EMPTY_DRAFT;
+  const { customer, paymentMethod, shipping, lookup } = draft;
+
+  function patchDraft(key, changes) {
+    setDrafts(prev => {
+      const current = prev[key] ?? EMPTY_DRAFT;
+      return { ...prev, [key]: { ...current, ...(typeof changes === 'function' ? changes(current) : changes) } };
+    });
+  }
+  const setCustomer = (value) => patchDraft(activeId, { customer: value });
+
+  function replaceCart(updated) {
+    setCarts(prev => prev.map(c => (c.id === updated.id ? updated : c)));
+  }
+
+  function dropCart(id) {
+    setCarts(prev => prev.filter(c => c.id !== id));
+    setDrafts(prev => {
+      const { [id]: _dropped, ...rest } = prev;
+      return rest;
+    });
+    setActiveId(NEW_CART);
+  }
+
+  // Cada cambio del carrito va al servidor, que reserva o devuelve el stock
+  // en el momento: si otro vendedor se llevó la última unidad, se entera acá.
+  async function run(action) {
+    setBusy(true);
+    setNotice({ kind: '', text: '' });
+    try {
+      await action();
+    } catch (err) {
+      setNotice({ kind: 'error', text: err.message });
+    } finally {
+      setBusy(false);
+    }
+  }
 
   function handleQueryChange(value) {
     setQuery(value);
@@ -78,126 +112,119 @@ export default function VendedorPanel() {
   }
 
   function handleDocNumberChange(value) {
-    setCustomer(prev => ({ ...prev, docNumber: value }));
+    const key = activeId;
+    patchDraft(key, d => ({ customer: { ...d.customer, docNumber: value }, lookup: { kind: '', text: '' } }));
     clearTimeout(lookupTimeout.current);
-    setLookup({ kind: '', text: '' });
     if (value.trim().length < 6) return;
     lookupTimeout.current = setTimeout(async () => {
-      setLookup({ kind: 'info', text: 'Buscando en Odoo…' });
+      patchDraft(key, { lookup: { kind: 'info', text: 'Buscando en Odoo…' } });
       try {
         const { found, partner } = await apiFetch(`/api/feria/customers/lookup?docNumber=${encodeURIComponent(value)}`);
         if (found) {
-          setCustomer(prev => ({ name: partner.name, docNumber: partner.vat || value, phone: partner.phone || prev.phone }));
-          setLookup({ kind: 'success', text: 'Cliente encontrado en Odoo.' });
+          patchDraft(key, d => ({
+            customer: {
+              name: partner.name, docNumber: partner.vat || value,
+              phone: partner.phone || d.customer.phone, email: partner.email || d.customer.email,
+            },
+            lookup: partner.email
+              ? { kind: 'success', text: 'Cliente encontrado en Odoo. Confirmá con el cliente que el email sea ese: ahí le llega la factura.' }
+              : { kind: 'info', text: 'Cliente encontrado en Odoo, pero no tiene email. Pedíselo: ahí le llega la factura.' },
+          }));
         } else {
-          setLookup({ kind: 'info', text: 'Cliente nuevo: se crea en Odoo al confirmar la venta.' });
+          patchDraft(key, { lookup: { kind: 'info', text: 'Cliente nuevo: se crea en Odoo al confirmar la venta.' } });
         }
       } catch {
-        setLookup({ kind: 'info', text: 'No se pudo consultar Odoo. Cargá el nombre a mano.' });
+        patchDraft(key, { lookup: { kind: 'info', text: 'No se pudo consultar Odoo. Cargá el nombre a mano.' } });
       }
     }, 400);
   }
 
   function addLine(product, condition) {
-    const info = product.condiciones[condition];
-    const location = product.stock.exhibicion > 0 ? 'exhibicion' : 'rolon';
-    setLines(prev => [...prev, {
-      sku: product.sku, modelo: product.modelo, condition,
-      qty: 1, tablePrice: info.precioTabla, stock: product.stock,
-      location, delivery: location === 'exhibicion' ? 'ahora' : 'retira_rolon',
-    }]);
-    setQuery('');
-    setResults([]);
+    const location = defaultLocationFor(condition, product.stock);
+    const body = JSON.stringify({ sku: product.sku, condition, qty: 1, location, delivery: defaultDeliveryFor(location) });
+    run(async () => {
+      if (cart) {
+        const { cart: updated } = await apiFetch(`/api/feria/carts/${cart.id}/lines`, { method: 'POST', body });
+        replaceCart(updated);
+      } else {
+        const { cart: created } = await apiFetch('/api/feria/carts', { method: 'POST', body });
+        setCarts(prev => [...prev, created]);
+        // Lo que ya se había cargado del cliente pasa al carrito recién creado.
+        setDrafts(prev => {
+          const { [NEW_CART]: pending, ...rest } = prev;
+          return pending ? { ...rest, [created.id]: pending } : rest;
+        });
+        setActiveId(created.id);
+      }
+      setQuery('');
+      setResults([]);
+    });
   }
 
-  function updateLine(index, changes) {
-    setLines(prev => prev.map((l, i) => {
-      if (i !== index) return l;
-      const next = { ...l, ...changes };
-      // Si la entrega no corresponde a la ubicación nueva (se lleva ahora solo
-      // de Exhibición, retira en Rolón solo de Rolón), pasa a la habitual.
-      if (!deliveryAllowed(next.delivery, next.location)) next.delivery = defaultDeliveryFor(next.location);
-      return next;
-    }));
+  function updateLine(line, changes) {
+    const next = { ...line, ...changes };
+    // Si la entrega no corresponde a la ubicación nueva (se lleva ahora solo
+    // de Exhibición o Fallados, retira en Rolón solo de Rolón), pasa a la habitual.
+    if (!deliveryAllowed(next.delivery, next.location)) changes = { ...changes, delivery: defaultDeliveryFor(next.location) };
+    run(async () => {
+      const { cart: updated } = await apiFetch(`/api/feria/carts/${cart.id}/lines/${line.lineId}`, {
+        method: 'PATCH', body: JSON.stringify(changes),
+      });
+      replaceCart(updated);
+    });
   }
 
-  function removeLine(index) {
-    setLines(prev => prev.filter((_, i) => i !== index));
+  function removeLine(line) {
+    run(async () => {
+      const { cart: updated } = await apiFetch(`/api/feria/carts/${cart.id}/lines/${line.lineId}`, { method: 'DELETE' });
+      replaceCart(updated);
+    });
+  }
+
+  function discardCart() {
+    if (!window.confirm(`¿Vaciar el carrito ${cart.number}? Se devuelve todo el stock reservado y el número queda sin usar.`)) return;
+    run(async () => {
+      await apiFetch(`/api/feria/carts/${cart.id}`, { method: 'DELETE' });
+      dropCart(cart.id);
+      setNotice({ kind: 'success', text: `Carrito ${cart.number} vaciado: el stock quedó libre. Si le pusiste la etiqueta a algún mueble, sacala.` });
+    });
   }
 
   const needsShipping = lines.some(l => l.delivery === 'envio');
   const shippingCost = needsShipping ? SHIPPING_COST : 0;
-  const listTotal = lines.reduce((sum, l) => sum + l.qty * l.tablePrice, 0);
+  const listTotal = lines.reduce((sum, l) => sum + l.qty * l.listPrice, 0);
   const selectedMethod = PAYMENT_METHODS.find(m => m.value === paymentMethod);
   const itemsTotal = selectedMethod
-    ? lines.reduce((sum, l) => sum + l.qty * finalUnitPrice(l.tablePrice, paymentMethod), 0)
+    ? lines.reduce((sum, l) => sum + l.qty * finalUnitPrice(l.listPrice, paymentMethod), 0)
     : null;
-  const problems = stockProblemsByLine(lines);
-  const hasProblems = Object.keys(problems).length > 0;
   // El teléfono de envío arranca con el del cliente; se cambia solo si es otro.
   const effectiveShipping = { ...shipping, phone: shipping.phone || customer.phone };
   const phoneDigits = customer.phone.replace(/\D/g, '').length;
+  const emailOk = EMAIL_PATTERN.test(customer.email.trim());
   const shippingOk = !needsShipping || REQUIRED_SHIPPING.every(f => effectiveShipping[f].trim());
 
   const missing = [];
   if (!lines.length) missing.push('productos');
   if (!customer.docNumber.trim() || !customer.name.trim()) missing.push('cliente');
   if (phoneDigits < 8) missing.push('teléfono del cliente');
+  if (!emailOk) missing.push('email del cliente');
   if (!paymentMethod) missing.push('medio de pago');
   if (!shippingOk) missing.push('datos de envío');
-  const canSubmit = missing.length === 0 && !hasProblems && !sending;
+  const canSubmit = !!cart && missing.length === 0 && !busy;
+  const submitLabel = busy ? 'Un momento…' : cart ? `Enviar ${cart.number} a caja` : 'Enviar pedido a caja';
 
-  async function handleSubmit() {
+  function handleSubmit() {
     if (!canSubmit) return;
-    setSending(true);
-    setNotice({ kind: 'info', text: 'Confirmando precios y stock…' });
-    try {
-      // Precio y stock se vuelven a pedir recién al enviar: caja puede activar
-      // una rebaja y otro vendedor puede reservar la última unidad mientras el
-      // pedido está abierto en la tablet. El backend igual vuelve a verificar
-      // el stock en una transacción al crear el pedido.
-      const productCache = new Map();
-      const freshLines = [];
-      for (const line of lines) {
-        if (!productCache.has(line.sku)) {
-          const { products } = await apiFetch(`/api/feria/products/search?q=${encodeURIComponent(line.sku)}`);
-          productCache.set(line.sku, products.find(p => p.sku === line.sku) || null);
-        }
-        const fresh = productCache.get(line.sku);
-        const info = fresh?.condiciones?.[line.condition];
-        if (!info || !info.disponible || info.precioTabla == null) {
-          throw new Error(`No se pudo confirmar el precio actual de ${line.modelo}. Sacalo del pedido y volvé a agregarlo.`);
-        }
-        if (!fresh.stock) {
-          throw new Error(`No se pudo verificar el stock de ${line.modelo} porque Odoo no responde. Probá de nuevo en unos segundos.`);
-        }
-        freshLines.push({
-          sku: line.sku, modelo: line.modelo, condition: line.condition,
-          qty: line.qty, unitPrice: finalUnitPrice(info.precioTabla, paymentMethod),
-          // Precio de tabla sin el descuento del medio de pago: a Odoo viaja
-          // este como precio unitario y el descuento va aparte.
-          listPrice: info.precioTabla,
-          location: line.location, delivery: line.delivery,
-        });
-      }
-
-      const { order } = await apiFetch('/api/feria/orders', {
+    // El servidor fija el precio con la rebaja vigente y el medio de pago; el
+    // stock ya está reservado desde que se agregó cada producto.
+    run(async () => {
+      const { order } = await apiFetch(`/api/feria/carts/${cart.id}/submit`, {
         method: 'POST',
-        body: JSON.stringify({ customer, paymentMethod, lines: freshLines, ...(needsShipping ? { shipping: effectiveShipping } : {}) }),
+        body: JSON.stringify({ customer, paymentMethod, ...(needsShipping ? { shipping: effectiveShipping } : {}) }),
       });
-      setNotice({ kind: 'success', text: `Pedido ${order.number} de ${customer.name} enviado a caja. Decile al cliente que pase con ese número.` });
-      setLines([]);
-      setQuery('');
-      setResults([]);
-      setCustomer(EMPTY_CUSTOMER);
-      setPaymentMethod('');
-      setShipping(EMPTY_SHIPPING);
-      setLookup({ kind: '', text: '' });
-    } catch (err) {
-      setNotice({ kind: 'error', text: err.message });
-    } finally {
-      setSending(false);
-    }
+      dropCart(cart.id);
+      setNotice({ kind: 'success', text: `Pedido ${order.number} de ${order.customer.name} enviado a caja. Decile al cliente que pase con ese número.` });
+    });
   }
 
   return (
@@ -206,6 +233,37 @@ export default function VendedorPanel() {
 
       <div className={styles.layout}>
         <main className={styles.main}>
+          {(carts.length > 0 || cart) && (
+            <nav className={styles.cartTabs} aria-label="Carritos abiertos">
+              {carts.map(c => {
+                const name = drafts[c.id]?.customer.name.trim();
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className={`${styles.cartTab} ${c.id === activeId ? styles.cartTabActive : ''}`}
+                    aria-current={c.id === activeId ? 'true' : undefined}
+                    disabled={busy}
+                    onClick={() => setActiveId(c.id)}
+                  >
+                    <span className={`num ${styles.cartTabNumber}`}>{c.number}</span>
+                    <span className={styles.cartTabMeta}>
+                      {name || `${c.lines.length} ${c.lines.length === 1 ? 'producto' : 'productos'}`}
+                    </span>
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                className={`${styles.cartTab} ${styles.cartTabNew} ${activeId === NEW_CART ? styles.cartTabActive : ''}`}
+                disabled={busy}
+                onClick={() => setActiveId(NEW_CART)}
+              >
+                + Nuevo carrito
+              </button>
+            </nav>
+          )}
+
           <section className={styles.searchBlock}>
             <label className={styles.searchLabel} htmlFor="search">Agregar producto</label>
             <input
@@ -223,15 +281,17 @@ export default function VendedorPanel() {
             {results.length > 0 && (
               <ul className={styles.results}>
                 {results.map(p => {
-                  const sinStock = !p.stock || p.stock.exhibicion + p.stock.rolon === 0;
+                  const sinStock = !hasDiscontinuoStock(p.stock);
                   return (
                     <li key={p.sku} className={styles.result}>
+                      <ProductPhoto sku={p.sku} alt={p.modelo} size={64} />
                       <div className={styles.resultInfo}>
                         <span className={styles.resultName}>{p.modelo}</span>
                         <span className={styles.resultMeta}>{p.sku}{p.color ? ` · ${p.color.trim()}` : ''}</span>
                         <div className={styles.stockRow}>
                           {p.stock ? (
                             <>
+                              <span className={styles.stockLabel}>Stock discontinuo</span>
                               <Chip tone={p.stock.exhibicion > 0 ? 'done' : 'neutral'}>Exhibición {p.stock.exhibicion}</Chip>
                               <Chip tone={p.stock.rolon > 0 ? 'done' : 'neutral'}>Rolón {p.stock.rolon}</Chip>
                             </>
@@ -245,15 +305,15 @@ export default function VendedorPanel() {
                           <button
                             key={condition}
                             type="button"
-                            className={styles.conditionBtn}
-                            disabled={sinStock}
+                            className={`${styles.conditionBtn} cond-${condition}`}
+                            disabled={busy || (condition === 'discontinuo' && sinStock)}
                             onClick={() => addLine(p, condition)}
                           >
                             <span className={styles.conditionName}>{CONDITION_LABELS[condition]}</span>
                             <span className="num">{formatMoney(p.condiciones[condition].precioTabla)}</span>
                           </button>
                         ))}
-                        {sinStock && p.stock && <span className={styles.noStock}>Sin stock</span>}
+                        {sinStock && p.stock && p.condiciones.discontinuo.disponible && <span className={styles.noStock}>Discontinuo sin stock</span>}
                       </div>
                     </li>
                   );
@@ -263,57 +323,81 @@ export default function VendedorPanel() {
           </section>
 
           <section>
-            <h2 className={styles.sectionTitle}>
-              Pedido <span className={styles.count}>{lines.length ? `${lines.length} ${lines.length === 1 ? 'producto' : 'productos'}` : ''}</span>
-            </h2>
+            <div className={styles.cartHead}>
+              <h2 className={styles.sectionTitle}>
+                {cart ? <>Pedido <span className={`num ${styles.cartNumber}`}>{cart.number}</span></> : 'Pedido nuevo'}
+                <span className={styles.count}>{lines.length ? `${lines.length} ${lines.length === 1 ? 'producto' : 'productos'}` : ''}</span>
+              </h2>
+              {cart && (
+                <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={discardCart}>
+                  Vaciar carrito
+                </button>
+              )}
+            </div>
+            {cart && (
+              <p className={styles.cartHint}>
+                Anotá <strong className="num">{cart.number}</strong> en la etiqueta de vendido. Lo que está en el carrito ya quedó reservado.
+              </p>
+            )}
             {lines.length === 0 ? (
-              <EmptyState title="Todavía no agregaste productos">Buscá por SKU o modelo y elegí la condición.</EmptyState>
+              <EmptyState title="Todavía no agregaste productos">
+                {cart
+                  ? 'Buscá por SKU o modelo y elegí la condición.'
+                  : 'Buscá por SKU o modelo y elegí la condición. Con el primer producto el pedido toma su número y el stock queda reservado.'}
+              </EmptyState>
             ) : (
               <ul className={styles.lines}>
-                {lines.map((line, i) => (
-                  <li key={i} className={`${styles.line} ${problems[i] ? styles.lineProblem : ''}`}>
+                {lines.map(line => (
+                  <li key={line.lineId} className={`${styles.line} cond-${line.condition}`}>
                     <div className={styles.lineHead}>
+                      <ProductPhoto sku={line.sku} alt={line.modelo} size={56} />
                       <div>
                         <p className={styles.lineName}>{line.modelo}</p>
-                        <p className={styles.lineMeta}>{line.sku} · {CONDITION_LABELS[line.condition]}</p>
+                        <p className={styles.lineMeta}><ConditionChip condition={line.condition} /> {line.sku}</p>
                       </div>
                       <div className={styles.linePrice}>
                         <span className="num">
-                          {formatMoney(line.qty * (selectedMethod ? finalUnitPrice(line.tablePrice, paymentMethod) : line.tablePrice))}
+                          {formatMoney(line.qty * (selectedMethod ? finalUnitPrice(line.listPrice, paymentMethod) : line.listPrice))}
                         </span>
                         {selectedMethod?.discountPct > 0 && (
-                          <span className={`num ${styles.lineListPrice}`}>{formatMoney(line.qty * line.tablePrice)}</span>
+                          <span className={`num ${styles.lineListPrice}`}>{formatMoney(line.qty * line.listPrice)}</span>
                         )}
                       </div>
-                      <button type="button" className={styles.removeBtn} onClick={() => removeLine(i)} aria-label={`Quitar ${line.modelo}`}>×</button>
+                      <button type="button" className={styles.removeBtn} disabled={busy} onClick={() => removeLine(line)} aria-label={`Quitar ${line.modelo}`}>×</button>
                     </div>
 
                     <div className={styles.lineControls}>
                       <div className={styles.stepper} role="group" aria-label="Cantidad">
-                        <button type="button" onClick={() => updateLine(i, { qty: Math.max(1, line.qty - 1) })} aria-label="Una menos">−</button>
+                        <button type="button" disabled={busy || line.qty <= 1} onClick={() => updateLine(line, { qty: line.qty - 1 })} aria-label="Una menos">−</button>
                         <span className="num">{line.qty}</span>
-                        <button type="button" onClick={() => updateLine(i, { qty: line.qty + 1 })} aria-label="Una más">+</button>
+                        <button type="button" disabled={busy} onClick={() => updateLine(line, { qty: line.qty + 1 })} aria-label="Una más">+</button>
                       </div>
 
-                      <div className={styles.segmented} role="radiogroup" aria-label="Sale de">
-                        {Object.entries(LOCATION_LABELS).map(([value, label]) => (
-                          <button
-                            key={value}
-                            type="button"
-                            role="radio"
-                            aria-checked={line.location === value}
-                            className={line.location === value ? styles.segmentActive : ''}
-                            onClick={() => updateLine(i, { location: value })}
-                          >
-                            {label} <span className={styles.segmentCount}>{line.stock?.[value] ?? 0}</span>
-                          </button>
-                        ))}
-                      </div>
+                      {line.condition === 'falla' ? (
+                        <span className={styles.fixedLocation}>Sale de Fallados</span>
+                      ) : (
+                        <div className={styles.segmented} role="radiogroup" aria-label="Sale de">
+                          {locationsFor(line.condition).map(value => (
+                            <button
+                              key={value}
+                              type="button"
+                              role="radio"
+                              aria-checked={line.location === value}
+                              className={line.location === value ? styles.segmentActive : ''}
+                              disabled={busy}
+                              onClick={() => line.location !== value && updateLine(line, { location: value })}
+                            >
+                              {LOCATION_LABELS[value]}
+                            </button>
+                          ))}
+                        </div>
+                      )}
 
                       <select
                         className={`select ${styles.deliverySelect}`}
                         value={line.delivery}
-                        onChange={(e) => updateLine(i, { delivery: e.target.value })}
+                        disabled={busy}
+                        onChange={(e) => updateLine(line, { delivery: e.target.value })}
                         aria-label="Entrega"
                       >
                         {Object.entries(DELIVERY_LABELS).map(([value, label]) => (
@@ -322,7 +406,6 @@ export default function VendedorPanel() {
                       </select>
                     </div>
 
-                    {problems[i] && <p className={styles.problem}>Sin stock suficiente. {problems[i]}</p>}
                     {line.delivery === 'envio' && (
                       <p className={styles.shippingNote}>
                         Va a domicilio: cargá la dirección en <a href="#envio" onClick={(e) => { e.preventDefault(); document.getElementById('envio')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>Datos de envío</a>.
@@ -355,6 +438,13 @@ export default function VendedorPanel() {
                 value={customer.phone} onChange={(e) => setCustomer({ ...customer, phone: e.target.value })} />
               {customer.phone.trim() && phoneDigits < 8 && <p className={styles.fieldError}>Tiene que tener al menos 8 números.</p>}
             </div>
+            <div className="field">
+              <label className="field-label" htmlFor="customer-email">Email (le llega la factura)</label>
+              <input id="customer-email" className="input" type="email" inputMode="email" autoComplete="off" autoCapitalize="none"
+                spellCheck={false} placeholder="cliente@mail.com"
+                value={customer.email} onChange={(e) => setCustomer({ ...customer, email: e.target.value })} />
+              {customer.email.trim() && !emailOk && <p className={styles.fieldError}>Revisá el email: parece mal escrito.</p>}
+            </div>
           </section>
 
           <section className={styles.summaryBlock}>
@@ -362,7 +452,7 @@ export default function VendedorPanel() {
             <div className={styles.payGrid} role="radiogroup" aria-label="Medio de pago">
               {PAYMENT_METHODS.map(m => {
                 const total = lines.length
-                  ? lines.reduce((s, l) => s + l.qty * finalUnitPrice(l.tablePrice, m.value), 0) + shippingCost
+                  ? lines.reduce((s, l) => s + l.qty * finalUnitPrice(l.listPrice, m.value), 0) + shippingCost
                   : null;
                 return (
                   <button
@@ -371,7 +461,7 @@ export default function VendedorPanel() {
                     role="radio"
                     aria-checked={paymentMethod === m.value}
                     className={`${styles.payOption} ${styles[`pay-${m.tone}`]} ${paymentMethod === m.value ? styles.payActive : ''}`}
-                    onClick={() => setPaymentMethod(m.value)}
+                    onClick={() => patchDraft(activeId, { paymentMethod: m.value })}
                   >
                     <span className={styles.payRadio} aria-hidden="true" />
                     <span className={styles.payName}>{m.label}</span>
@@ -390,33 +480,25 @@ export default function VendedorPanel() {
               </h2>
               <p className={styles.shippingHelp}>Una línea va a domicilio: completá a dónde se manda.</p>
               <div className={styles.shippingGrid}>
-                <div className={`field ${styles.span2}`}>
-                  <label className="field-label" htmlFor="street">Calle</label>
-                  <input id="street" className="input" value={shipping.street} onChange={(e) => setShipping({ ...shipping, street: e.target.value })} />
-                </div>
-                <div className="field">
-                  <label className="field-label" htmlFor="number">Número</label>
-                  <input id="number" className="input" value={shipping.number} onChange={(e) => setShipping({ ...shipping, number: e.target.value })} />
-                </div>
-                <div className="field">
-                  <label className="field-label" htmlFor="floor">Piso / depto (opcional)</label>
-                  <input id="floor" className="input" value={shipping.floor} onChange={(e) => setShipping({ ...shipping, floor: e.target.value })} />
-                </div>
-                <div className="field">
-                  <label className="field-label" htmlFor="city">Localidad</label>
-                  <input id="city" className="input" value={shipping.city} onChange={(e) => setShipping({ ...shipping, city: e.target.value })} />
-                </div>
-                <div className="field">
-                  <label className="field-label" htmlFor="zip">Código postal</label>
-                  <input id="zip" className="input" value={shipping.zip} onChange={(e) => setShipping({ ...shipping, zip: e.target.value })} />
-                </div>
+                {[
+                  ['street', 'Calle', true], ['number', 'Número'], ['floor', 'Piso / depto (opcional)'],
+                  ['city', 'Localidad'], ['zip', 'Código postal'],
+                ].map(([field, label, wide]) => (
+                  <div key={field} className={`field ${wide ? styles.span2 : ''}`}>
+                    <label className="field-label" htmlFor={field}>{label}</label>
+                    <input id={field} className="input" value={shipping[field]}
+                      onChange={(e) => patchDraft(activeId, { shipping: { ...shipping, [field]: e.target.value } })} />
+                  </div>
+                ))}
                 <div className={`field ${styles.span2}`}>
                   <label className="field-label" htmlFor="phone">Teléfono</label>
-                  <input id="phone" className="input" inputMode="tel" value={effectiveShipping.phone} onChange={(e) => setShipping({ ...shipping, phone: e.target.value })} />
+                  <input id="phone" className="input" inputMode="tel" value={effectiveShipping.phone}
+                    onChange={(e) => patchDraft(activeId, { shipping: { ...shipping, phone: e.target.value } })} />
                 </div>
                 <div className={`field ${styles.span2}`}>
                   <label className="field-label" htmlFor="notes">Observaciones u horario (opcional)</label>
-                  <input id="notes" className="input" value={shipping.notes} onChange={(e) => setShipping({ ...shipping, notes: e.target.value })} />
+                  <input id="notes" className="input" value={shipping.notes}
+                    onChange={(e) => patchDraft(activeId, { shipping: { ...shipping, notes: e.target.value } })} />
                 </div>
               </div>
             </section>
@@ -439,18 +521,41 @@ export default function VendedorPanel() {
             </div>
             {!selectedMethod && lines.length > 0 && <p className={styles.totalHint}>Elegí el medio de pago para ver el total.</p>}
 
-            <Notice kind={notice.kind || 'info'} onClose={notice.kind !== 'info' ? () => setNotice({ kind: '', text: '' }) : undefined}>
-              {notice.text}
-            </Notice>
+            <div className={styles.desktopOnly}>
+              <Notice kind={notice.kind || 'info'} onClose={notice.text ? () => setNotice({ kind: '', text: '' }) : undefined}>
+                {notice.text}
+              </Notice>
+            </div>
 
-            <button className="btn btn-primary btn-lg btn-block" onClick={handleSubmit} disabled={!canSubmit}>
-              {sending ? 'Enviando…' : 'Enviar pedido a caja'}
+            <button className={`btn btn-primary btn-lg btn-block ${styles.desktopSubmit}`} onClick={handleSubmit} disabled={!canSubmit}>
+              {submitLabel}
             </button>
             {missing.length > 0 && lines.length > 0 && (
               <p className={styles.totalHint}>Falta: {missing.join(', ')}.</p>
             )}
           </section>
         </aside>
+      </div>
+
+      {/* Celular: el aviso y el botón de enviar quedan fijos abajo, al
+          alcance del pulgar, estés donde estés de la página. */}
+      <div className={styles.mobileBar}>
+        <Notice kind={notice.kind || 'info'} onClose={notice.text ? () => setNotice({ kind: '', text: '' }) : undefined}>
+          {notice.text}
+        </Notice>
+        {(cart || lines.length > 0) && (
+          <div className={styles.mobileBarRow}>
+            <div className={styles.mobileTotal}>
+              <span className={styles.mobileTotalLabel}>
+                {missing.length && lines.length ? `Falta: ${missing.join(', ')}` : selectedMethod ? `Total con ${selectedMethod.label}` : 'Total de lista'}
+              </span>
+              <span className="num">{formatMoney((itemsTotal ?? listTotal) + shippingCost)}</span>
+            </div>
+            <button className="btn btn-primary btn-lg" onClick={handleSubmit} disabled={!canSubmit}>
+              {busy ? 'Un momento…' : 'Enviar a caja'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
