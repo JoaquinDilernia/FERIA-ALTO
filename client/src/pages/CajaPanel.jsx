@@ -64,6 +64,7 @@ function PedidosTab({ openRequest }) {
   const [adding, setAdding] = useState(false);
   const [splitting, setSplitting] = useState(false);
   const [orderNotes, setOrderNotes] = useState('');
+  const [queueSearch, setQueueSearch] = useState('');
   // null = todavía no se sabe; false = caja cerrada (no se confirma).
   const [cashOpen, setCashOpen] = useState(null);
 
@@ -289,6 +290,12 @@ function PedidosTab({ openRequest }) {
     }
   }
 
+  // Buscador de la cola: nombre del cliente, número de pedido (F2-0012) o DNI.
+  const q = queueSearch.trim().toLowerCase();
+  const visibleOrders = !q ? orders : orders.filter(o => (o.number ?? '').toLowerCase().includes(q)
+    || (o.customer?.name ?? '').toLowerCase().includes(q)
+    || (o.customer?.docNumber ?? '').includes(q));
+
   const editable = selected && ['pendiente', 'error'].includes(selected.status);
   // Confirmado: ya no cambian cantidades ni precios (están en Odoo), pero sí
   // de dónde sale y cómo se entrega, y se marca entregado.
@@ -316,10 +323,23 @@ function PedidosTab({ openRequest }) {
         <h2 className={styles.queueTitle}>
           Por confirmar <span className={`num ${styles.queueCount}`}>{orders.length}</span>
         </h2>
+        {orders.length > 0 && (
+          <input
+            className={`input ${styles.queueSearch}`}
+            type="search"
+            placeholder="Nombre, N.º de pedido o DNI"
+            aria-label="Buscar pedido por nombre, número o DNI"
+            value={queueSearch}
+            onChange={(e) => setQueueSearch(e.target.value)}
+          />
+        )}
         {offline && <Notice kind="error">Sin conexión con el servidor. Reintentando…</Notice>}
         {orders.length === 0 && <EmptyState title="No hay pedidos esperando">Los pedidos que carguen los vendedores aparecen acá.</EmptyState>}
+        {orders.length > 0 && visibleOrders.length === 0 && (
+          <EmptyState title="Ningún pedido coincide">Si ya se confirmó, buscalo en Historial.</EmptyState>
+        )}
         <ul className={styles.queueList}>
-          {orders.map(order => (
+          {visibleOrders.map(order => (
             <li key={order.id}>
               <button
                 type="button"
