@@ -21,6 +21,8 @@ import styles from './CajaPanel.module.css';
 
 const SEARCH_MIN_CHARS = 6;
 const REBAJA_LABELS = { 0: 'Normal', 1: 'Rebaja 1', 2: 'Rebaja 2', 3: 'Rebaja 3' };
+// Mismo tope que AUTO_RETRY_MAX del backend (feriaLines.mjs).
+const AUTO_RETRY_MAX = 6;
 const MANUAL_LEVEL = 3;
 const percentOff = (value) => PAYMENT_METHODS.find(m => m.value === value).discountPct;
 
@@ -396,7 +398,12 @@ function PedidosTab({ openRequest }) {
             </header>
 
             {selected.status === 'error' && (
-              <Notice kind="error">No se pudo confirmar en Odoo: {selected.errorDetail}</Notice>
+              <Notice kind="error">
+                No se pudo confirmar en Odoo: {selected.errorDetail}{' '}
+                {(selected.autoRetryCount ?? 0) < AUTO_RETRY_MAX
+                  ? `El sistema lo reintenta solo cada pocos minutos (van ${selected.autoRetryCount ?? 0} de ${AUTO_RETRY_MAX} intentos automáticos); también podés reintentarlo vos.`
+                  : 'Ya se reintentó solo varias veces sin suerte: revisá el error y reintentalo a mano.'}
+              </Notice>
             )}
 
             <section className={styles.linesCard}>
