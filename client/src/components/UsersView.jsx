@@ -112,9 +112,9 @@ export default function UsersView() {
 
       <section className={styles.card}>
         <h2 className={styles.title}>Caja y Logística</h2>
-        <p className={styles.muted}>Entran con email y contraseña. Caja ve pedidos, caja del día, entregas, alerta stock e historial; Super admin además estadísticas, rebajas y usuarios; Logística, solo <b>/#/logistica</b>.</p>
+        <p className={styles.muted}>Entran eligiendo su nombre y con su contraseña. Caja ve pedidos, caja del día, entregas, alerta stock e historial; Super admin además estadísticas, rebajas y usuarios; Logística, solo <b>/#/logistica</b>.</p>
         <table className={styles.table}>
-          <thead><tr><th>Email</th><th>Nombre</th><th>Rol</th><th /></tr></thead>
+          <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th /></tr></thead>
           <tbody>
             {data.admins.map(a => (
               <tr key={a.id}>
@@ -138,8 +138,8 @@ export default function UsersView() {
           <h3 className={styles.subtitle}>{editingAdmin ? `Editar ${editingAdmin}` : 'Nuevo usuario'}</h3>
           <div className={styles.fields}>
             {!editingAdmin && (
-              <label className="field"><span className="field-label">Email</span>
-                <input className="input" type="email" autoComplete="off" value={admin.email} onChange={(e) => setAdmin({ ...admin, email: e.target.value })} /></label>
+              <label className="field"><span className="field-label">Usuario (nombre.apellido o email)</span>
+                <input className="input" autoComplete="off" placeholder="Ej. maria.castera" value={admin.email} onChange={(e) => setAdmin({ ...admin, email: e.target.value })} /></label>
             )}
             <label className="field"><span className="field-label">Nombre</span>
               <input className="input" value={admin.name} onChange={(e) => setAdmin({ ...admin, name: e.target.value })} /></label>
