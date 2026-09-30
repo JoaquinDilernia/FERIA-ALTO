@@ -8,7 +8,7 @@ import {
 import { AppHeader, Chip, Notice, EmptyState, ProductPhoto, ConditionChip } from '../components/ui.jsx';
 import styles from './VendedorPanel.module.css';
 
-const SEARCH_MIN_CHARS = 6;
+const SEARCH_MIN_CHARS = 4;
 const EMPTY_CUSTOMER = { name: '', docNumber: '', phone: '', email: '' };
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const EMPTY_SHIPPING = { street: '', number: '', floor: '', city: '', zip: '', phone: '', notes: '' };
@@ -275,7 +275,7 @@ export default function VendedorPanel({ inCaja = false, onSent } = {}) {
               className={`input ${styles.searchInput}`}
               value={query}
               onChange={(e) => handleQueryChange(e.target.value)}
-              placeholder="SKU o modelo, mínimo 6 caracteres"
+              placeholder="SKU o modelo, mínimo 4 caracteres"
               autoComplete="off"
             />
             {searching && <p className={styles.searchHint}>Buscando…</p>}

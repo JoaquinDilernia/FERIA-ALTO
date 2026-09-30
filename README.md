@@ -34,7 +34,7 @@ feria, cliente por DNI y el panel público).
   `FERIA_AUTH_SECRET`, `ODOO_FERIA_TEAM_NAME`, `ODOO_FERIA_PRICELIST_NAME`,
   `ODOO_FERIA_WAREHOUSE_ID`, `ODOO_FERIA_LOCATION_EXHIBICION_ID`,
   `ODOO_FERIA_LOCATION_ROLON_ID`, `ODOO_FERIA_LOCATION_FALLADOS_ID`,
-  `ODOO_FERIA_SHIPPING_PRODUCT_NAME`
+  `ODOO_FERIA_SHIPPING_PRODUCT_SKU` (opcional, default `ENV002EX`)
   (ver `Reportes/backend/.env.example`).
 - **Frontend**: deploy propio, liviano (build estático con `npm run build`
   en `client/`), con `VITE_API_URL` apuntando a la URL pública del servicio

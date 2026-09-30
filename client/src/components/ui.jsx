@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BASE_URL } from '../lib/api.js';
 import { clearSession } from '../lib/session.js';
 import logoAlto from '../assets/logo-alto.png';
@@ -14,6 +14,12 @@ export function logout() {
 // Encabezado de todos los paneles: logo reducido, nombre del panel en
 // minúscula con punto (como la marca), pestañas opcionales y salir.
 export function AppHeader({ panel, userName, tabs, activeTab, onTabChange }) {
+  // En el celular las pestañas se deslizan de costado: la activa queda a la vista.
+  const activeRef = useRef(null);
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+  }, [activeTab]);
+
   return (
     <header className={styles.header}>
       <div className={styles.brand}>
@@ -25,6 +31,7 @@ export function AppHeader({ panel, userName, tabs, activeTab, onTabChange }) {
           {tabs.map(t => (
             <button
               key={t.value}
+              ref={activeTab === t.value ? activeRef : undefined}
               type="button"
               className={`${styles.tab} ${activeTab === t.value ? styles.tabActive : ''}`}
               aria-current={activeTab === t.value ? 'page' : undefined}

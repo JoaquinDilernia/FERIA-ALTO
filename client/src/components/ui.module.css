@@ -11,29 +11,58 @@
   background: var(--paper);
   border-bottom: 1px solid var(--line);
 }
-.brand { display: flex; align-items: baseline; gap: var(--s-3); }
+.brand { display: flex; align-items: baseline; gap: var(--s-3); flex-shrink: 0; }
 .brandLogo { height: 26px; width: auto; align-self: center; }
 /* El nombre del panel en minúscula con punto, como el logo. */
 .panelName { font-size: var(--fs-xl); font-weight: 600; letter-spacing: -0.01em; line-height: 1; }
-.tabs { display: flex; gap: 2px; margin-left: var(--s-4); }
+/* Las pestañas nunca parten el título en dos filas: si no entran, la barra se
+   desliza de costado (sin barra de scroll visible). */
+.tabs {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 2px;
+  margin-left: var(--s-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
 .tab {
-  min-height: 36px;
+  flex-shrink: 0;
+  min-height: 30px;
   padding: 0 var(--s-3);
   border: none;
   border-radius: var(--r-pill);
   background: transparent;
-  color: var(--ink-2);
-  font-size: var(--fs-md);
+  color: var(--ink-3);
+  font-size: var(--fs-sm);
   font-weight: 500;
+  white-space: nowrap;
+  transition: color 0.12s;
 }
-.tab:hover { background: var(--wash); color: var(--ink); }
+/* Hover discreto: solo oscurece el texto, y solo con mouse. */
+@media (hover: hover) {
+  .tab:hover { color: var(--ink); }
+}
 .tabActive, .tabActive:hover { background: var(--ink); color: var(--paper); }
-.headerEnd { margin-left: auto; display: flex; align-items: center; gap: var(--s-3); }
-.userName { font-size: var(--fs-sm); color: var(--ink-2); }
+.headerEnd { margin-left: auto; display: flex; align-items: center; gap: var(--s-3); flex-shrink: 0; }
+.userName { font-size: var(--fs-sm); color: var(--ink-2); white-space: nowrap; }
 
-@media (max-width: 720px) {
-  .header { flex-wrap: wrap; padding: var(--s-2) var(--s-4); gap: var(--s-2); }
-  .tabs { order: 3; width: 100%; margin-left: 0; overflow-x: auto; }
+/* Celular / tablet angosta: logo y Salir arriba, pestañas en una fila abajo
+   que se desliza con el dedo, pegada a los bordes. */
+@media (max-width: 900px) {
+  .header { flex-wrap: wrap; padding: var(--s-2) var(--s-4) 0; gap: 0 var(--s-2); min-height: 0; }
+  .brand { min-height: 44px; align-items: center; }
+  .brandLogo { height: 22px; }
+  .panelName { font-size: var(--fs-lg); }
+  .tabs {
+    order: 3;
+    flex-basis: 100%;
+    margin: 0 calc(var(--s-4) * -1);
+    padding: var(--s-1) var(--s-4) var(--s-2);
+    scroll-padding-inline: var(--s-4);
+  }
+  .tab { min-height: 36px; }
   .userName { display: none; }
 }
 

@@ -18,11 +18,11 @@ import {
 } from '../components/ui.jsx';
 import {
   orderBreakdown, formatMoney, formatTime, formatDateTime, paymentMethodInfo, CONDITION_LABELS, PAYMENT_METHODS, readAmount,
-  SHIPPING_ZONE_HINT,
+  SHIPPING_ZONE_HINT, SHIPPING_COST, SHIPPING_SKU,
 } from '../lib/feriaLabels.js';
 import styles from './CajaPanel.module.css';
 
-const SEARCH_MIN_CHARS = 6;
+const SEARCH_MIN_CHARS = 4;
 const REBAJA_LABELS = { 0: 'Normal', 1: 'Rebaja 1', 2: 'Rebaja 2', 3: 'Rebaja 3' };
 // Mismo tope que AUTO_RETRY_MAX del backend (feriaLines.mjs).
 const AUTO_RETRY_MAX = 6;
@@ -445,7 +445,9 @@ function PedidosTab({ openRequest }) {
             ) : selected.shipping && (
               <section className={styles.shipping}>
                 <div className={styles.shippingText}>
-                  <p className={styles.shippingLabel}>Envío a domicilio</p>
+                  <p className={styles.shippingLabel}>
+                    Envío a domicilio · <span className={styles.shippingSku}>{SHIPPING_SKU}</span> · {formatMoney(selected.shippingCost || SHIPPING_COST)}
+                  </p>
                   <p className={styles.shippingAddress}>
                     {selected.shipping.street} {selected.shipping.number}{selected.shipping.floor ? `, ${selected.shipping.floor}` : ''} — {selected.shipping.city} ({selected.shipping.zip})
                   </p>
@@ -535,7 +537,12 @@ function PedidosTab({ openRequest }) {
                     <dd className="num">− {formatMoney(breakdown.discount)}</dd>
                   </div>
                 )}
-                {breakdown.shipping > 0 && <div><dt>Envío</dt><dd className="num">{formatMoney(breakdown.shipping)}</dd></div>}
+                {breakdown.shipping > 0 && (
+                  <div>
+                    <dt>Envío <span className={styles.shippingSku}>{SHIPPING_SKU}</span> <span className={styles.shippingNote}>sin descuento</span></dt>
+                    <dd className="num">{formatMoney(breakdown.shipping)}</dd>
+                  </div>
+                )}
               </dl>
               <div className={styles.charge}>
                 <span>{editable ? 'A cobrar' : confirmed ? 'Cobrado' : 'Total'} <span className={styles.chargeMethod}>{selected.payments ? 'en varios medios' : `con ${method.label}`}</span></span>
@@ -639,7 +646,7 @@ function RebajasTab() {
         <div className="field">
           <label className={styles.rebajasLabel} htmlFor="rebaja-search">Cambiar la rebaja de un producto</label>
           <input id="rebaja-search" className={`input ${styles.rebajasSearch}`} value={query}
-            onChange={(e) => handleQueryChange(e.target.value)} placeholder="SKU o modelo, mínimo 6 caracteres" autoComplete="off" />
+            onChange={(e) => handleQueryChange(e.target.value)} placeholder="SKU o modelo, mínimo 4 caracteres" autoComplete="off" />
         </div>
       ) : results.length === 0 && (
         <EmptyState title={`Nada en ${REBAJA_LABELS[view]}`}>Ningún producto tiene esta rebaja activa.</EmptyState>

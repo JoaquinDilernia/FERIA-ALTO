@@ -72,6 +72,17 @@
 
 .shipping { padding: var(--s-3) var(--s-4); border-radius: var(--r-md); background: var(--wash); }
 .shippingLabel { font-size: var(--fs-xs); color: var(--ink-3); }
+/* SKU del envío (ENV002EX): el mismo producto que va a Odoo. */
+.shippingSku {
+  padding: 1px 6px;
+  border-radius: var(--r-sm);
+  background: var(--wash-2);
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.shippingNote { color: var(--ink-3); font-size: var(--fs-xs); }
 .shippingAddress { font-weight: 600; }
 
 /* Cierre de la venta: el total a cobrar es lo más grande de la pantalla. */

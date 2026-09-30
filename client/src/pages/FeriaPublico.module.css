@@ -48,6 +48,19 @@
 }
 .search::placeholder { color: var(--ink-3); }
 .search:focus { outline: none; box-shadow: var(--focus); }
+.skuHelp { max-width: 560px; color: var(--ink-2); font-size: var(--fs-sm); text-align: center; text-wrap: balance; }
+.skuHelp strong { color: var(--ink); font-weight: 600; }
+.skuExample {
+  display: inline-block;
+  padding: 1px 8px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-sm);
+  background: var(--paper);
+  color: var(--ink);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+}
 .hint { min-height: 20px; color: var(--ink-2); font-size: var(--fs-sm); text-align: center; }
 .hint:empty { display: none; }
 

@@ -4,7 +4,7 @@ import { CONDITION_LABELS, formatMoney, defaultDeliveryFor, defaultLocationFor, 
 import { Chip, ProductPhoto } from './ui.jsx';
 import styles from './AddProductSearch.module.css';
 
-const SEARCH_MIN_CHARS = 6;
+const SEARCH_MIN_CHARS = 4;
 
 // Buscador para que Caja sume un producto a un pedido sin confirmar. El
 // precio final lo calcula el servidor con el medio de pago del pedido; acá
@@ -57,7 +57,7 @@ export default function AddProductSearch({ disabled, onAdd, onClose }) {
         className="input"
         value={query}
         onChange={(e) => handleChange(e.target.value)}
-        placeholder="SKU o modelo, mínimo 6 caracteres"
+        placeholder="SKU o modelo, mínimo 4 caracteres"
         autoComplete="off"
         autoFocus
       />

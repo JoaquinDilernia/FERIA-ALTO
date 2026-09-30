@@ -4,7 +4,7 @@ import { PAYMENT_METHODS, formatMoney } from '../lib/feriaLabels.js';
 import { ProductPhoto, ConditionChip, Chip, EmptyState } from './ui.jsx';
 import styles from './ProductLookupView.module.css';
 
-const SEARCH_MIN_CHARS = 6;
+const SEARCH_MIN_CHARS = 4;
 const REBAJA_LABELS = { 1: 'Rebaja 1', 2: 'Rebaja 2', 3: 'Rebaja 3' };
 // Un precio por grupo, como los ve el cliente: las tres tarjetas valen lo mismo.
 const PRICE_GROUPS = [
@@ -48,7 +48,7 @@ export default function ProductLookupView() {
     <div className={styles.body}>
       <label className={styles.label} htmlFor="product-lookup">Consultar un producto</label>
       <input id="product-lookup" className={`input ${styles.search}`} value={query} autoComplete="off" autoFocus
-        placeholder="SKU o modelo, mínimo 6 caracteres" onChange={(e) => handleChange(e.target.value)} />
+        placeholder="SKU o modelo, mínimo 4 caracteres" onChange={(e) => handleChange(e.target.value)} />
       {searching && <p className={styles.muted}>Buscando…</p>}
       {!searching && typed >= SEARCH_MIN_CHARS && results.length === 0 && (
         <EmptyState title="Sin resultados">No hay productos de la feria que coincidan con “{query}”.</EmptyState>

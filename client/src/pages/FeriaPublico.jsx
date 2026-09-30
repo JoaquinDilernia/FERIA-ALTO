@@ -5,7 +5,7 @@ import logo from '../assets/logo-altorancho.png';
 import { ProductPhoto, ConditionChip } from '../components/ui.jsx';
 import styles from './FeriaPublico.module.css';
 
-const SEARCH_MIN_CHARS = 6;
+const SEARCH_MIN_CHARS = 4;
 // Mismas claves que PUBLIC_PRICE_OPTIONS del backend.
 const PRICE_TONES = { transferencia: 'transfer', efectivo: 'cash', mercadopago: 'mp' };
 
@@ -64,6 +64,10 @@ export default function FeriaPublico() {
           autoComplete="off"
           autoFocus
         />
+        {/* Que el cliente sepa qué código copiar de la etiqueta. */}
+        <p className={styles.skuHelp}>
+          El código de la etiqueta tiene <strong>3 letras, 3 números y 2 letras</strong>. Ej.: <span className={styles.skuExample}>ALF029CG</span>
+        </p>
         <p className={styles.hint}>
           {typed > 0 && typed < SEARCH_MIN_CHARS && `Escribí ${SEARCH_MIN_CHARS - typed} caracteres más para buscar.`}
           {searching && 'Buscando…'}

@@ -47,6 +47,8 @@ export function paymentMethodInfo(value) {
 // Mismo valor que SHIPPING_COST del backend (feriaPricing.mjs): por pedido,
 // con IVA, sin descuento por medio de pago.
 export const SHIPPING_COST = 25000;
+// Producto de envío en Odoo (ODOO_FERIA_SHIPPING_PRODUCT_SKU del backend).
+export const SHIPPING_SKU = 'ENV002EX';
 
 // Estados de línea que todavía tienen stock reservado (falta entregar).
 export const RESERVING_STATUSES = ['pendiente', 'enviado_feria'];
