@@ -27,8 +27,10 @@ function finalUnitPrice(listPrice, paymentMethod) {
   return Math.round(listPrice * (1 - method.discountPct / 100));
 }
 
-export default function VendedorPanel() {
-  const seller = getSession('vendedor')?.profile ?? {};
+// `inCaja`: la pestaña "Nuevo pedido" de Caja, que arma el pedido igual que
+// un vendedor (numerado FC-0001) y al mandarlo lo abre en Pedidos (`onSent`).
+export default function VendedorPanel({ inCaja = false, onSent } = {}) {
+  const seller = getSession(inCaja ? 'caja' : 'vendedor')?.profile ?? {};
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -211,7 +213,8 @@ export default function VendedorPanel() {
   if (!paymentMethod) missing.push('medio de pago');
   if (!shippingOk) missing.push('datos de envío');
   const canSubmit = !!cart && missing.length === 0 && !busy;
-  const submitLabel = busy ? 'Un momento…' : cart ? `Enviar ${cart.number} a caja` : 'Enviar pedido a caja';
+  const sendVerb = inCaja ? 'Pasar a cobrar' : 'Enviar a caja';
+  const submitLabel = busy ? 'Un momento…' : inCaja ? (cart ? `Pasar ${cart.number} a cobrar` : sendVerb) : cart ? `Enviar ${cart.number} a caja` : 'Enviar pedido a caja';
 
   function handleSubmit() {
     if (!canSubmit) return;
@@ -223,13 +226,14 @@ export default function VendedorPanel() {
         body: JSON.stringify({ customer, paymentMethod, ...(needsShipping ? { shipping: effectiveShipping } : {}) }),
       });
       dropCart(cart.id);
-      setNotice({ kind: 'success', text: `Pedido ${order.number} de ${order.customer.name} enviado a caja. Decile al cliente que pase con ese número.` });
+      if (onSent) onSent(order);
+      else setNotice({ kind: 'success', text: `Pedido ${order.number} de ${order.customer.name} enviado a caja. Decile al cliente que pase con ese número.` });
     });
   }
 
   return (
     <div className={styles.page}>
-      <AppHeader panel="vendedor" userName={seller.name} />
+      {!inCaja && <AppHeader panel="vendedor" userName={seller.name} />}
 
       <div className={styles.layout}>
         <main className={styles.main}>
@@ -553,7 +557,7 @@ export default function VendedorPanel() {
               <span className="num">{formatMoney((itemsTotal ?? listTotal) + shippingCost)}</span>
             </div>
             <button className="btn btn-primary btn-lg" onClick={handleSubmit} disabled={!canSubmit}>
-              {busy ? 'Un momento…' : 'Enviar a caja'}
+              {busy ? 'Un momento…' : sendVerb}
             </button>
           </div>
         )}

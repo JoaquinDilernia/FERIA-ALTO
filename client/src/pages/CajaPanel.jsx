@@ -4,6 +4,7 @@ import { apiFetch } from '../lib/api.js';
 import OrderLines from '../components/OrderLines.jsx';
 import SplitPayment from '../components/SplitPayment.jsx';
 import EntregasView from '../components/EntregasView.jsx';
+import VendedorPanel from './VendedorPanel.jsx';
 import ShippingForm from '../components/ShippingForm.jsx';
 import AddProductSearch from '../components/AddProductSearch.jsx';
 import HistoryView from '../components/HistoryView.jsx';
@@ -700,6 +701,7 @@ function RebajasTab() {
 
 const TABS = [
   { value: 'pedidos', label: 'Pedidos' },
+  { value: 'nuevo', label: 'Nuevo pedido' },
   { value: 'caja', label: 'Caja del día' },
   { value: 'entregas', label: 'Entregas' },
   { value: 'productos', label: 'Productos' },
@@ -743,6 +745,12 @@ export default function CajaPanel() {
     <div className={styles.page}>
       <AppHeader panel="caja" userName={user.name} tabs={user.adminRole === 'superadmin' ? SUPERADMIN_TABS : TABS} activeTab={tab} onTabChange={setTab} />
       {tab === 'pedidos' && <PedidosTab openRequest={openRequest} />}
+      {/* Pedido armado desde caja, como un vendedor: al pasarlo a cobrar se
+          abre en Pedidos. Queda montado para no perder lo cargado del cliente
+          al cambiar de pestaña. */}
+      <div hidden={tab !== 'nuevo'}>
+        <VendedorPanel inCaja onSent={openFromHistory} />
+      </div>
       {tab === 'caja' && <CashView />}
       {/* Caja arranca en "Retiros en depósito feria" (lo que el cliente viene a buscar),
           pero puede ver y marcar todo, igual que Logística. */}
