@@ -7,6 +7,7 @@ import EntregasView from '../components/EntregasView.jsx';
 import VendedorPanel from './VendedorPanel.jsx';
 import ShippingForm from '../components/ShippingForm.jsx';
 import AddProductSearch from '../components/AddProductSearch.jsx';
+import VariosForm from '../components/VariosForm.jsx';
 import HistoryView from '../components/HistoryView.jsx';
 import UsersView from '../components/UsersView.jsx';
 import StockAlertsView from '../components/StockAlertsView.jsx';
@@ -18,7 +19,7 @@ import {
 } from '../components/ui.jsx';
 import {
   orderBreakdown, formatMoney, formatTime, formatDateTime, paymentMethodInfo, CONDITION_LABELS, PAYMENT_METHODS, readAmount,
-  SHIPPING_ZONE_HINT, SHIPPING_COST, SHIPPING_SKU,
+  SHIPPING_ZONE_HINT, SHIPPING_COST, SHIPPING_SKU, VARIOS_SKU,
 } from '../lib/feriaLabels.js';
 import styles from './CajaPanel.module.css';
 
@@ -174,7 +175,9 @@ function PedidosTab({ openRequest }) {
   function addProduct({ modelo, ...input }) {
     runAction('add', () => apiFetch(`/api/feria/orders/${selected.id}/lines`, {
       method: 'POST', body: JSON.stringify(input),
-    }), `${modelo} agregado al pedido. Revisá de dónde sale y cómo se entrega.`);
+    }), input.sku === VARIOS_SKU
+      ? `${modelo} (artículo varios) agregado al pedido.`
+      : `${modelo} agregado al pedido. Revisá de dónde sale y cómo se entrega.`);
     setAdding(false);
   }
 
@@ -422,12 +425,19 @@ function PedidosTab({ openRequest }) {
               />
             </section>
 
-            {editable && !selected.odooOrderId && (adding ? (
+            {editable && !selected.odooOrderId && (adding === 'varios' ? (
+              <VariosForm disabled={!!busy} paymentMethod={selected.paymentMethod} onAdd={addProduct} onClose={() => setAdding(false)} />
+            ) : adding ? (
               <AddProductSearch disabled={!!busy} onAdd={addProduct} onClose={() => setAdding(false)} />
             ) : (
-              <button type="button" className={`btn btn-secondary ${styles.addBtn}`} onClick={() => setAdding(true)} disabled={!!busy}>
-                + Agregar producto
-              </button>
+              <div className={styles.addBtns}>
+                <button type="button" className="btn btn-secondary" onClick={() => setAdding(true)} disabled={!!busy}>
+                  + Agregar producto
+                </button>
+                <button type="button" className="btn btn-ghost" onClick={() => setAdding('varios')} disabled={!!busy}>
+                  + Artículo varios
+                </button>
+              </div>
             ))}
 
             {shippingEdit ? (

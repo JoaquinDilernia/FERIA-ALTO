@@ -67,7 +67,10 @@ export const ORDER_STATUS = {
   cancelado: { label: 'Cancelado', tone: 'neutral' },
 };
 
-export const CONDITION_LABELS = { falla: 'Falla', discontinuo: 'Discontinuo' };
+export const CONDITION_LABELS = { falla: 'Falla', discontinuo: 'Discontinuo', varios: 'Varios' };
+
+// Artículo varios (backend feriaLines.mjs): SKU genérico con precio a mano.
+export const VARIOS_SKU = 'ARTVARIOS';
 
 export function formatMoney(value) {
   if (value == null || Number.isNaN(value)) return '—';

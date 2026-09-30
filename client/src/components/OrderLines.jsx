@@ -1,6 +1,6 @@
 import {
   LOCATION_LABELS, DELIVERY_LABELS, RESERVING_STATUSES, formatDateTime, formatMoney,
-  deliveryAllowed, defaultDeliveryFor, locationsFor, controlsStock,
+  deliveryAllowed, defaultDeliveryFor, locationsFor, controlsStock, VARIOS_SKU,
 } from '../lib/feriaLabels.js';
 import { LineStatusChip, ProductPhoto, ConditionChip } from './ui.jsx';
 import styles from './OrderLines.module.css';
@@ -35,6 +35,8 @@ export default function OrderLines({ lines, stockBySku = {}, disabled = false, o
         const reserving = RESERVING_STATUSES.includes(l.status);
         const stock = stockBySku[l.sku];
         const detail = statusDetail(l);
+        // Artículo varios sale siempre "Me llevo ahora" y no controla stock.
+        const varios = l.sku === VARIOS_SKU;
         return (
           <li key={l.lineId || i} className={`${styles.line} ${styles[`line-${l.status}`] ?? ''}`}>
             <div className={styles.product}>
@@ -56,7 +58,7 @@ export default function OrderLines({ lines, stockBySku = {}, disabled = false, o
             </div>
 
             <div className={styles.where}>
-              {onEdit && reserving ? (
+              {onEdit && reserving && !varios ? (
                 <div className={styles.editors}>
                   {/* Falla sale siempre de Fallados: no hay ubicación para elegir. */}
                   <select className="select select-sm" value={l.location} disabled={disabled || l.condition === 'falla'}
@@ -76,7 +78,7 @@ export default function OrderLines({ lines, stockBySku = {}, disabled = false, o
                   <span> desde {LOCATION_LABELS[l.location] ?? '—'}</span>
                 </p>
               )}
-              {stock && reserving && controlsStock(l.location) && (
+              {stock && reserving && !varios && controlsStock(l.location) && (
                 <p className={styles.meta}>Disponible · Exhibición {stock.exhibicion} · Rolón {stock.rolon}</p>
               )}
             </div>

@@ -156,6 +156,7 @@ ul, ol { list-style: none; }
    expone --cond, --cond-bg y --cond-line para teñir bordes, fondos y textos. */
 .cond-falla { --cond: var(--falla); --cond-bg: var(--falla-bg); --cond-line: var(--falla-line); }
 .cond-discontinuo { --cond: var(--disc); --cond-bg: var(--disc-bg); --cond-line: var(--disc-line); }
+.cond-varios { --cond: var(--ink-2); --cond-bg: var(--wash-2); --cond-line: var(--line-strong); }
 
 /* ---- Pantallas táctiles (celular) ----
    iOS hace zoom al enfocar un campo de menos de 16px: en táctil van a 16px.
