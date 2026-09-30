@@ -17,9 +17,29 @@ const EMPTY_SHIPPING = { street: '', number: '', floor: '', city: '', zip: '', p
 const REQUIRED_SHIPPING = ['street', 'number', 'city', 'zip', 'phone'];
 // Lo que el vendedor va cargando de cada carrito (cliente, pago, envío) vive
 // en la tablet hasta mandarlo a caja; los productos y el stock, en el servidor.
+// Se guarda en el navegador para que no se pierda al salir del panel,
+// recargar o bloquear la tablet.
 const EMPTY_DRAFT = { customer: EMPTY_CUSTOMER, paymentMethod: '', shipping: EMPTY_SHIPPING, lookup: { kind: '', text: '' } };
 // Carrito todavía sin crear: se crea (y toma número) con el primer producto.
 const NEW_CART = 'nuevo';
+
+// El navegador puede no dejar guardar (modo privado, almacenamiento lleno):
+// en ese caso sigue como antes, solo en memoria.
+function readDrafts(key) {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) ?? '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeDrafts(key, drafts) {
+  try {
+    if (Object.keys(drafts).length) localStorage.setItem(key, JSON.stringify(drafts));
+    else localStorage.removeItem(key);
+  } catch { /* sin almacenamiento: queda en memoria */ }
+}
 
 // Devuelve null mientras no haya medio de pago elegido — el descuento depende
 // del medio de pago, así que antes de elegirlo no hay precio final que mostrar.
@@ -39,7 +59,9 @@ export default function VendedorPanel({ inCaja = false, onSent } = {}) {
   const [searching, setSearching] = useState(false);
   const [carts, setCarts] = useState([]);
   const [activeId, setActiveId] = useState(NEW_CART);
-  const [drafts, setDrafts] = useState({});
+  const draftsKey = `feria_drafts_${inCaja ? 'caja' : 'vendedor'}_${seller.id ?? 'anon'}`;
+  const [drafts, setDrafts] = useState(() => readDrafts(draftsKey));
+  useEffect(() => { writeDrafts(draftsKey, drafts); }, [draftsKey, drafts]);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState({ kind: '', text: '' });
   const searchTimeout = useRef(null);
@@ -51,6 +73,10 @@ export default function VendedorPanel({ inCaja = false, onSent } = {}) {
       .then(({ carts: open }) => {
         setCarts(open);
         if (open.length) setActiveId(open[open.length - 1].id);
+        // Se descartan los datos guardados de carritos que ya no están
+        // abiertos (mandados a caja o vaciados desde otra pantalla).
+        const openIds = new Set([NEW_CART, ...open.map(c => c.id)]);
+        setDrafts(prev => Object.fromEntries(Object.entries(prev).filter(([id]) => openIds.has(id))));
       })
       .catch(err => setNotice({ kind: 'error', text: `No se pudieron cargar tus carritos: ${err.message}` }));
   }, []);
