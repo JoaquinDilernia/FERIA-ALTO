@@ -4,8 +4,10 @@ import { apiFetch } from '../lib/api.js';
 import {
   LOCATION_LABELS, DELIVERY_LABELS, SHIPPING_COST, PAYMENT_METHODS, CONDITION_LABELS, formatMoney,
   deliveryAllowed, defaultDeliveryFor, locationsFor, defaultLocationFor, hasDiscontinuoStock, RETIRA_FERIA_HINT, SHIPPING_ZONE_HINT,
+  VARIOS_SKU,
 } from '../lib/feriaLabels.js';
 import { AppHeader, Chip, Notice, EmptyState, ProductPhoto, ConditionChip } from '../components/ui.jsx';
+import VariosForm from '../components/VariosForm.jsx';
 import styles from './VendedorPanel.module.css';
 
 const SEARCH_MIN_CHARS = 4;
@@ -32,6 +34,7 @@ function finalUnitPrice(listPrice, paymentMethod) {
 export default function VendedorPanel({ inCaja = false, onSent } = {}) {
   const seller = getSession(inCaja ? 'caja' : 'vendedor')?.profile ?? {};
   const [query, setQuery] = useState('');
+  const [addingVarios, setAddingVarios] = useState(false);
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [carts, setCarts] = useState([]);
@@ -143,7 +146,16 @@ export default function VendedorPanel({ inCaja = false, onSent } = {}) {
 
   function addLine(product, condition) {
     const location = defaultLocationFor(condition, product.stock);
-    const body = JSON.stringify({ sku: product.sku, condition, qty: 1, location, delivery: defaultDeliveryFor(location) });
+    addToCart({ sku: product.sku, condition, qty: 1, location, delivery: defaultDeliveryFor(location) });
+  }
+
+  // Artículo varios (solo caja): descripción y precio de lista a mano.
+  function addVarios({ modelo, ...input }) {
+    addToCart(input, () => setAddingVarios(false));
+  }
+
+  function addToCart(input, onDone) {
+    const body = JSON.stringify(input);
     run(async () => {
       if (cart) {
         const { cart: updated } = await apiFetch(`/api/feria/carts/${cart.id}/lines`, { method: 'POST', body });
@@ -160,6 +172,7 @@ export default function VendedorPanel({ inCaja = false, onSent } = {}) {
       }
       setQuery('');
       setResults([]);
+      onDone?.();
     });
   }
 
@@ -278,6 +291,13 @@ export default function VendedorPanel({ inCaja = false, onSent } = {}) {
               placeholder="SKU o modelo, mínimo 4 caracteres"
               autoComplete="off"
             />
+            {inCaja && (addingVarios ? (
+              <VariosForm disabled={busy} paymentMethod={paymentMethod || undefined} onAdd={addVarios} onClose={() => setAddingVarios(false)} />
+            ) : (
+              <button type="button" className={`btn btn-ghost btn-sm ${styles.variosBtn}`} disabled={busy} onClick={() => setAddingVarios(true)}>
+                + Artículo varios
+              </button>
+            ))}
             {searching && <p className={styles.searchHint}>Buscando…</p>}
             {!searching && query.trim().length >= SEARCH_MIN_CHARS && results.length === 0 && (
               <p className={styles.searchHint}>No hay productos de la feria que coincidan con “{query}”.</p>
@@ -377,7 +397,9 @@ export default function VendedorPanel({ inCaja = false, onSent } = {}) {
                         <button type="button" disabled={busy} onClick={() => updateLine(line, { qty: line.qty + 1 })} aria-label="Una más">+</button>
                       </div>
 
-                      {line.condition === 'falla' ? (
+                      {line.sku === VARIOS_SKU ? (
+                        <span className={styles.fixedLocation}>Me llevo ahora · Exhibición</span>
+                      ) : line.condition === 'falla' ? (
                         <span className={styles.fixedLocation}>Sale de Fallados</span>
                       ) : (
                         <div className={styles.segmented} role="radiogroup" aria-label="Sale de">
@@ -397,7 +419,7 @@ export default function VendedorPanel({ inCaja = false, onSent } = {}) {
                         </div>
                       )}
 
-                      <select
+                      {line.sku !== VARIOS_SKU && <select
                         className={`select ${styles.deliverySelect}`}
                         value={line.delivery}
                         disabled={busy}
@@ -407,7 +429,7 @@ export default function VendedorPanel({ inCaja = false, onSent } = {}) {
                         {Object.entries(DELIVERY_LABELS).map(([value, label]) => (
                           <option key={value} value={value} disabled={!deliveryAllowed(value, line.location)}>{label}</option>
                         ))}
-                      </select>
+                      </select>}
                     </div>
 
                     {line.delivery === 'envio' && (

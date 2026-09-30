@@ -48,7 +48,8 @@ export default function VariosForm({ disabled, paymentMethod, onAdd, onClose }) 
       </div>
       {unitPrice != null && (
         <p className={styles.hint}>
-          Con {method.label}{method.discountPct ? ` −${method.discountPct}%` : ''}: <strong className="num">{formatMoney(unitPrice * qty)}</strong>
+          {paymentMethod ? `Con ${method.label}${method.discountPct ? ` −${method.discountPct}%` : ''}` : 'Total de lista (el descuento se aplica al elegir el medio de pago)'}:{' '}
+          <strong className="num">{formatMoney(unitPrice * qty)}</strong>
           {qty > 1 ? ` (${formatMoney(unitPrice)} c/u)` : ''}
         </p>
       )}

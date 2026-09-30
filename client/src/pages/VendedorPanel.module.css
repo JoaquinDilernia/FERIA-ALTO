@@ -321,3 +321,4 @@
   .payOption:hover { border-color: var(--line-strong); }
   .stepper button:not(:disabled):hover { background: var(--wash); }
 }
+.variosBtn { align-self: flex-start; margin-top: var(--s-1); }
