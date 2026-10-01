@@ -14,6 +14,9 @@ import StockAlertsView from '../components/StockAlertsView.jsx';
 import ProductLookupView from '../components/ProductLookupView.jsx';
 import StatsView from '../components/StatsView.jsx';
 import CashView from '../components/CashView.jsx';
+import LabelsView from '../components/LabelsView.jsx';
+import AddLabelButton from '../components/AddLabelButton.jsx';
+import { addLabel, refreshLabelsFrom } from '../lib/labelQueue.js';
 import {
   AppHeader, PaymentChips, OrderStatusChip, OrderNumbers, Notice, EmptyState, ProductPhoto, ConditionChip,
 } from '../components/ui.jsx';
@@ -629,6 +632,8 @@ function RebajasTab() {
       // La tarjeta se queda a la vista aunque ya no esté en el filtro (se ve
       // el cambio); los contadores sí se actualizan.
       setResults(prev => prev.map(p => p.sku === sku ? { ...p, condiciones: product.condiciones } : p));
+      // Si ya estaba en la cola de etiquetas, queda con el precio nuevo.
+      refreshLabelsFrom(product);
       loadRebajas(null);
       setNotice({ kind: 'success', text: `${product.modelo} (${CONDITION_LABELS[condition]}): ${REBAJA_LABELS[level]} activa, ${formatMoney(product.condiciones[condition].precioTabla)}.` });
     } catch (err) {
@@ -636,6 +641,18 @@ function RebajasTab() {
     } finally {
       setSaving('');
     }
+  }
+
+  // Una etiqueta por cada producto + condición que tiene este nivel activo.
+  function addAllLabels(level) {
+    let n = 0;
+    for (const p of results) {
+      for (const condition of ['falla', 'discontinuo']) {
+        const info = p.condiciones[condition];
+        if (info.disponible && info.rebajaActiva === level) { addLabel(p, condition); n++; }
+      }
+    }
+    setNotice({ kind: 'success', text: `${n} etiqueta(s) agregadas. Imprimilas desde la pestaña Etiquetas.` });
   }
 
   return (
@@ -658,8 +675,14 @@ function RebajasTab() {
           <input id="rebaja-search" className={`input ${styles.rebajasSearch}`} value={query}
             onChange={(e) => handleQueryChange(e.target.value)} placeholder="SKU o modelo, mínimo 4 caracteres" autoComplete="off" />
         </div>
-      ) : results.length === 0 && (
+      ) : results.length === 0 ? (
         <EmptyState title={`Nada en ${REBAJA_LABELS[view]}`}>Ningún producto tiene esta rebaja activa.</EmptyState>
+      ) : (
+        <div>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => addAllLabels(view)}>
+            + Etiquetas de todo lo que está en {REBAJA_LABELS[view]}
+          </button>
+        </div>
       )}
       <Notice kind={notice.kind || 'info'} onClose={() => setNotice({ kind: '', text: '' })}>{notice.text}</Notice>
       {results.map(p => (
@@ -675,6 +698,7 @@ function RebajasTab() {
             <div key={condition} className={`${styles.rebajaSection} cond-${condition}`}>
               <p className={styles.rebajaCondition}>
                 <ConditionChip condition={condition} large /> vigente <span className="num">{formatMoney(p.condiciones[condition].precioTabla)}</span>
+                <span className={styles.rebajaLabelBtn}><AddLabelButton product={p} condition={condition} /></span>
               </p>
               {/* Cada nivel muestra lo que paga el cliente con cada medio de
                   pago: se elige la rebaja sabiendo el precio final. */}
@@ -722,6 +746,7 @@ const TABS = [
   { value: 'caja', label: 'Caja del día' },
   { value: 'entregas', label: 'Entregas' },
   { value: 'productos', label: 'Productos' },
+  { value: 'etiquetas', label: 'Etiquetas' },
   { value: 'alertas', label: 'Alerta stock' },
   { value: 'historial', label: 'Historial' },
 ];
@@ -773,6 +798,7 @@ export default function CajaPanel() {
           pero puede ver y marcar todo, igual que Logística. */}
       {tab === 'entregas' && <EntregasView initialFilter="retiros_feria" />}
       {tab === 'productos' && <ProductLookupView />}
+      {tab === 'etiquetas' && <LabelsView />}
       {tab === 'alertas' && <StockAlertsView />}
       {tab === 'historial' && <HistoryView onOpen={openFromHistory} />}
       {tab === 'estadisticas' && user.adminRole === 'superadmin' && <StatsView />}

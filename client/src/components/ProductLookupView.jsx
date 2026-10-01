@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { apiFetch } from '../lib/api.js';
 import { PAYMENT_METHODS, formatMoney } from '../lib/feriaLabels.js';
 import { ProductPhoto, ConditionChip, Chip, EmptyState } from './ui.jsx';
+import AddLabelButton from './AddLabelButton.jsx';
 import styles from './ProductLookupView.module.css';
 
 const SEARCH_MIN_CHARS = 4;
@@ -90,6 +91,7 @@ export default function ProductLookupView() {
                         </div>
                       ))}
                     </dl>
+                    <div className={styles.labelBtn}><AddLabelButton product={p} condition={condition} /></div>
                   </div>
                 );
               })}

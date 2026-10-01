@@ -1,0 +1,20 @@
+/* Etiquetas Zebra: mismos estilos que la herramienta suelta, para que la
+   vista previa y la impresión por driver salgan iguales al ZPL. */
+.plbl { overflow: hidden; color: #000; background: #fff; font-family: Arial, Helvetica, sans-serif; box-sizing: border-box; position: relative; }
+.plbl .pin { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; }
+.plbl .pm { font-weight: 700; text-align: center; width: 100%; line-height: 1.1; overflow: hidden; }
+.plbl .pe { text-align: center; width: 100%; line-height: 1; text-transform: uppercase; letter-spacing: .3px; }
+.plbl .pp { font-weight: 900; line-height: 1; white-space: nowrap; }
+.plbl .ps { letter-spacing: .5px; line-height: 1.05; text-align: center; }
+.plbl svg { display: block; shape-rendering: crispEdges; }
+.lbl { border: 1px solid #bbb; box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
+.lbl .qty { position: absolute; top: 2px; right: 4px; font-size: 10px; color: #888; z-index: 1; }
+
+#zebraPrintArea { display: none; }
+@media print {
+  body.zebra-printing > *:not(#zebraPrintArea) { display: none !important; }
+  body.zebra-printing { background: #fff; margin: 0; }
+  body.zebra-printing #zebraPrintArea { display: block; }
+  #zebraPrintArea .plbl { page-break-after: always; break-after: page; }
+  #zebraPrintArea .plbl:last-child { page-break-after: auto; break-after: auto; }
+}

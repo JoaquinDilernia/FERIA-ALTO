@@ -238,3 +238,4 @@
 .rebajaFilter:hover { border-color: var(--ink); }
 .rebajaFilterActive, .rebajaFilterActive:hover { background: var(--ink); border-color: var(--ink); color: var(--paper); }
 .rebajaFilterActive .num { color: var(--paper); }
+.rebajaLabelBtn { margin-left: auto; }
